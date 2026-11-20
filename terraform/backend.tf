@@ -6,5 +6,6 @@ terraform {
     key                  = "project2.tfstate"
 
     use_azuread_auth = true
+    use_oidc         = true
   }
 }
