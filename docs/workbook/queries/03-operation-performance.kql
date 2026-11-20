@@ -1,0 +1,9 @@
+requests
+| where timestamp > ago(24h)
+| summarize
+    RequestCount = count(),
+    AvgResponseMs = round(avg(duration), 2),
+    P95ResponseMs = round(percentile(duration, 95), 2),
+    FailedRequests = countif(success == false)
+    by name
+| order by RequestCount desc

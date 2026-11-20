@@ -1,0 +1,11 @@
+availabilityResults
+| where timestamp > ago(24h)
+| summarize
+    TotalTests = count(),
+    SuccessfulTests = countif(success == 1),
+    FailedTests = countif(success == 0),
+    AvailabilityPct = round(
+        100.0 * countif(success == 1) / count(), 2
+    ),
+    AvgDurationMs = round(avg(duration), 2)
+    by name, location
