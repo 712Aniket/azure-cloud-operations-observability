@@ -1,4 +1,17 @@
 exceptions
-| where timestamp > ago(24h)
-| summarize ExceptionCount = count() by type
+| where timestamp >= ago(4d)
+| summarize
+    ExceptionCount = count(),
+    FirstSeen = min(timestamp),
+    LastSeen = max(timestamp),
+    SampleMessage = take_any(iff(isempty(outerMessage), innermostMessage, outerMessage)),
+    SampleOperation = take_any(operation_Name)
+    by type
+| project
+    ExceptionType = type,
+    ExceptionCount,
+    FirstSeen,
+    LastSeen,
+    SampleOperation,
+    SampleMessage
 | order by ExceptionCount desc

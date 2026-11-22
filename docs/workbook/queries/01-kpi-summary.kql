@@ -1,8 +1,37 @@
-requests
-| where timestamp > ago(24h)
+let summary = requests
+| where timestamp >= ago(4d)
 | summarize
     TotalRequests = count(),
     FailedRequests = countif(success == false),
-    FailureRate = round(100.0 * countif(success == false) / count(), 2),
-    AvgResponseMs = round(avg(duration), 2),
-    P95ResponseMs = round(percentile(duration, 95), 2)
+    ServerErrors = countif(toint(resultCode) between (500 .. 599));
+union
+(
+    summary
+    | project Title = "Total Requests",
+              Metric = todouble(TotalRequests),
+              SubTitle = "Last 4 days"
+),
+(
+    summary
+    | project Title = "Failed Requests",
+              Metric = todouble(FailedRequests),
+              SubTitle = "All failed requests"
+),
+(
+    summary
+    | project Title = "Failure Rate",
+              Metric = iff(TotalRequests == 0, 0.0, round(100.0 * todouble(FailedRequests) / todouble(TotalRequests), 2)),
+              SubTitle = "Percent of requests"
+),
+(
+    summary
+    | project Title = "HTTP 5xx Errors",
+              Metric = todouble(ServerErrors),
+              SubTitle = "Server errors"
+),
+(
+    summary
+    | project Title = "HTTP 5xx Rate",
+              Metric = iff(TotalRequests == 0, 0.0, round(100.0 * todouble(ServerErrors) / todouble(TotalRequests), 2)),
+              SubTitle = "Percent of requests"
+)

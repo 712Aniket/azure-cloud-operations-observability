@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import traceback
 from datetime import datetime, timezone
 from collections import defaultdict
 
@@ -104,7 +105,7 @@ certificate_downloads = sum(
 
 sessions = 0
 active_seconds = 0
-likes = 0
+like_events = []
 
 sections = defaultdict(lambda: {"views": 0, "seconds": 0})
 
@@ -124,7 +125,49 @@ for item in engagement:
         )
 
     elif metric == "like":
-        likes += 1
+        like_events.append(item)
+
+# Total appreciation events.
+likes = len(like_events)
+
+# Distinct visitor hashes across all recorded appreciation events.
+unique_appreciators = {
+    str(item.get("visitor_hash")).strip()
+    for item in like_events
+    if item.get("visitor_hash")
+}
+
+# Daily appreciation activity.
+daily_likes = defaultdict(int)
+daily_unique_appreciators = defaultdict(set)
+likes_missing_event_date = 0
+
+for item in like_events:
+    raw_event_date = str(item.get("event_date", "")).strip()
+
+    if not raw_event_date:
+        likes_missing_event_date += 1
+        continue
+
+    try:
+        event_day = datetime.strptime(
+            raw_event_date, "%Y%m%d"
+        ).strftime("%Y-%m-%d")
+    except ValueError:
+        likes_missing_event_date += 1
+        continue
+
+    daily_likes[event_day] += 1
+
+    visitor_hash = str(item.get("visitor_hash", "")).strip()
+    if visitor_hash:
+        daily_unique_appreciators[event_day].add(visitor_hash)
+
+# Aggregate comparison against the cumulative visitor counter.
+appreciation_rate = (
+    100.0 * len(unique_appreciators) / total_visitors
+    if total_visitors else 0.0
+)
 
 timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -208,6 +251,7 @@ try:
 except Exception as exc:
     cost_error = str(exc)
     print(f"WARNING: Azure cost data unavailable: {cost_error}")
+    traceback.print_exc()
 
 
 
@@ -231,12 +275,36 @@ lines = [
     f"| Portfolio sessions | {sessions} |",
     f"| Active time | {active_seconds // 60} min {active_seconds % 60} sec |",
     f"| Appreciations | {likes} |",
+    f"| Unique appreciators (visitor hashes) | {len(unique_appreciators)} |",
+    f"| Appreciation ratio vs. total visitors | {appreciation_rate:.2f}% |",
+    f"| Likes without valid dates | {likes_missing_event_date} |",
+    "",
+    "### Daily Portfolio Appreciations",
+    "",
+    "| Date | Like events | Unique appreciators |",
+    "|---|---:|---:|"
+]
+
+for date in sorted(daily_likes):
+    lines.append(
+        f"| {date} | {daily_likes[date]} | "
+        f"{len(daily_unique_appreciators[date])} |"
+    )
+
+if not daily_likes:
+    lines.append("| No dated appreciation events | 0 | 0 |")
+
+lines.extend([
+    "",
+    "> Appreciation ratio compares distinct like-event visitor hashes "
+    "with the cumulative visitor counter. It is not a session-level "
+    "conversion rate.",
     "",
     "### Visitor Geography",
     "",
     "| Country | Visitors |",
-    "|---|---:|"
-]
+    "|---|---:|---:|"
+])
 
 for country in sorted(
     countries,
@@ -337,6 +405,12 @@ snapshot_item = {
     }
 }
 
+snapshot_item["conditionalVisibility"] = {
+    "parameterName": "selectedTab",
+    "comparison": "isEqualTo",
+    "value": "analytics"
+}
+
 # --------------------------------------------------
 # LOAD EXISTING WORKBOOK
 # --------------------------------------------------
@@ -362,7 +436,12 @@ for item in workbook["items"]:
         )
 
 # Insert snapshot after the title.
-workbook["items"].insert(1, snapshot_item)
+snapshot_insert_at = next(
+    (index for index, item in enumerate(workbook["items"])
+     if item.get("name") == "Azure Resource Inventory"),
+    len(workbook["items"])
+)
+workbook["items"].insert(snapshot_insert_at, snapshot_item)
 
 # --------------------------------------------------
 # ADD LIVE AZURE RESOURCE INVENTORY
@@ -373,6 +452,11 @@ def resource_query(name, title, query, width="100"):
         "type": 3,
         "name": name,
         "customWidth": width,
+        "conditionalVisibility": {
+            "parameterName": "selectedTab",
+            "comparison": "isEqualTo",
+            "value": "analytics"
+        },
         "content": {
             "version": "KqlItem/1.0",
             "title": title,

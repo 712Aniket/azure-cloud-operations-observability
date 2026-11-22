@@ -5,18 +5,34 @@
       "type": 1,
       "name": "Project 2 Overview",
       "content": {
-        "json": "# Azure Cloud Operations & Observability Platform\n\n**Project 2 — Cloud Operations and Observability**\n\nMonitor API health, request performance, failures, exceptions and service availability using Azure Monitor, Application Insights and KQL.\n\n**Monitoring window:** Last 24 hours",
+        "json": "# Azure Cloud Operations & Observability Platform\n\n**Project 2 — Cloud Operations and Observability**\n\nUse the tabs to switch between operational health and diagnostics, portfolio analytics and governance.\n\n**Monitoring window:** Last 4 days (96 hours).\n\n_Note: Response-time KPIs are temporarily excluded from the KQL panels while Application Insights duration telemetry is investigated. They are not being reported as zero._",
         "style": "info"
       },
       "customWidth": "100"
     },
     {
-      "type": 1,
-      "name": "Portfolio Analytics Snapshot",
-      "customWidth": "100",
+      "type": 11,
+      "name": "Operations and Analytics Tabs",
       "content": {
-        "json": "## Portfolio Analytics\n\n**Data snapshot:** 2026-11-22 06:58 UTC\n\n| KPI | Value |\n|---|---:|\n| Total visitors | 1,129 |\n| Countries represented | 13 |\n| Resume views | 30 |\n| Resume downloads | 8 |\n| Certificate views | 17 |\n| Certificate downloads | 3 |\n| Portfolio sessions | 6 |\n| Active time | 1 min 4 sec |\n| Appreciations | 2 |\n\n### Visitor Geography\n\n| Country | Visitors |\n|---|---:|\n| 🇮🇳 India | 860 |\n| 🇺🇸 United States | 43 |\n| 🇬🇧 United Kingdom | 8 |\n| 🇨🇿 Czechia | 6 |\n| 🇵🇱 Poland | 4 |\n| 🇩🇪 Germany | 3 |\n| 🇸🇪 Sweden | 3 |\n| 🇦🇺 Australia | 3 |\n| 🇸🇬 Singapore | 2 |\n| 🇫🇷 France | 2 |\n| 🇳🇬 Nigeria | 1 |\n| 🇨🇾 Cyprus | 1 |\n| 🇫🇮 Finland | 1 |\n\n### Resume Analytics\n\n| Document | Views | Downloads |\n|---|---:|---:|\n| Resume | 30 | 8 |\n\n### Certificate Analytics\n\n| Certificate | Views | Downloads |\n|---|---:|---:|\n| AI-900 | 1 | 0 |\n| AWS-CCP | 2 | 1 |\n| AZ-104 | 5 | 1 |\n| AZ-900 | 5 | 1 |\n| Google-Cloud-Digital-Leader | 2 | 0 |\n| ITIL-4 | 2 | 0 |\n\n### Portfolio Engagement\n\n| Section | Views | Active seconds |\n|---|---:|---:|\n| Certifications | 3 | 0 |\n| Contact | 3 | 1 |\n| Experience | 3 | 1 |\n| Profile | 7 | 15 |\n| Projects | 3 | 7 |\n| Skills | 3 | 3 |\n\n### Azure Cost Visibility\n\n| Cost Metric | Value |\n|---|---:|\n| Cost data status | Unavailable - check deployment logs |\n\n### Security and Governance\n\n- Cost data is retrieved from Azure Cost Management.\n- Review resource usage and monitoring retention regularly.\n- Budget configuration and alert thresholds: not yet configured.\n- CI/CD identity permissions and deployment approvals: require separate verification.\n\n> Portfolio and cost metrics are snapshots captured during workbook deployment. Run this deployment again to refresh them.",
-        "style": "info"
+        "version": "LinkItem/1.0",
+        "style": "tabs",
+        "tabStyle": "bigger",
+        "links": [
+          {
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "Operations Overview",
+            "subTarget": "operations",
+            "style": "link"
+          },
+          {
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "Diagnostics & Portfolio Analytics",
+            "subTarget": "analytics",
+            "style": "link"
+          }
+        ]
       }
     },
     {
@@ -25,18 +41,47 @@
       "customWidth": "100",
       "content": {
         "version": "KqlItem/1.0",
-        "title": "API Health - KPI Summary",
-        "query": "requests\n| where timestamp > ago(24h)\n| summarize\n    TotalRequests = count(),\n    FailedRequests = countif(success == false),\n    FailureRate = round(100.0 * countif(success == false) / count(), 2),\n    AvgResponseMs = round(avg(duration), 2),\n    P95ResponseMs = round(percentile(duration, 95), 2)",
-        "size": 0,
+        "title": "API Health — Request & Failure KPIs (Last 4 Days)",
+        "query": "let summary = requests\n| where timestamp >= ago(4d)\n| summarize\n    TotalRequests = count(),\n    FailedRequests = countif(success == false),\n    ServerErrors = countif(toint(resultCode) between (500 .. 599));\nunion\n(\n    summary\n    | project Title = \"Total Requests\",\n              Metric = todouble(TotalRequests),\n              SubTitle = \"Last 4 days\"\n),\n(\n    summary\n    | project Title = \"Failed Requests\",\n              Metric = todouble(FailedRequests),\n              SubTitle = \"All failed requests\"\n),\n(\n    summary\n    | project Title = \"Failure Rate\",\n              Metric = iff(TotalRequests == 0, 0.0, round(100.0 * todouble(FailedRequests) / todouble(TotalRequests), 2)),\n              SubTitle = \"Percent of requests\"\n),\n(\n    summary\n    | project Title = \"HTTP 5xx Errors\",\n              Metric = todouble(ServerErrors),\n              SubTitle = \"Server errors\"\n),\n(\n    summary\n    | project Title = \"HTTP 5xx Rate\",\n              Metric = iff(TotalRequests == 0, 0.0, round(100.0 * todouble(ServerErrors) / todouble(TotalRequests), 2)),\n              SubTitle = \"Percent of requests\"\n)",
+        "size": 3,
         "queryType": 0,
         "resourceType": "microsoft.insights/components",
         "resourceIds": [
           "/subscriptions/8bb846b6-1057-42bb-a02a-7a64e6a34178/resourceGroups/rg-portfolio/providers/Microsoft.Insights/components/aniket-portfolio-api"
         ],
         "timeContext": {
-          "durationMs": 86400000
+          "durationMs": 345600000
         },
-        "visualization": "table"
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Title",
+            "formatter": 1,
+            "formatOptions": {
+              "showIcon": false
+            }
+          },
+          "subtitleContent": {
+            "columnMatch": "SubTitle",
+            "formatOptions": {
+              "showIcon": false
+            }
+          },
+          "leftContent": {
+            "columnMatch": "Metric",
+            "formatter": 12,
+            "formatOptions": {
+              "min": 0,
+              "showIcon": false
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "operations"
       }
     },
     {
@@ -45,8 +90,8 @@
       "customWidth": "50",
       "content": {
         "version": "KqlItem/1.0",
-        "title": "Request Volume and Failure Trend",
-        "query": "requests\n| where timestamp > ago(24h)\n| summarize\n    Requests = count(),\n    FailedRequests = countif(success == false)\n    by bin(timestamp, 1h)\n| order by timestamp asc",
+        "title": "Request Volume & Failures — Hourly Trend",
+        "query": "requests\n| where timestamp >= ago(4d)\n| summarize\n    Requests = count(),\n    FailedRequests = countif(success == false),\n    ServerErrors = countif(toint(resultCode) between (500 .. 599))\n    by bin(timestamp, 1h)\n| order by timestamp asc",
         "size": 1,
         "queryType": 0,
         "resourceType": "microsoft.insights/components",
@@ -54,9 +99,14 @@
           "/subscriptions/8bb846b6-1057-42bb-a02a-7a64e6a34178/resourceGroups/rg-portfolio/providers/Microsoft.Insights/components/aniket-portfolio-api"
         ],
         "timeContext": {
-          "durationMs": 86400000
+          "durationMs": 345600000
         },
         "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "operations"
       }
     },
     {
@@ -65,8 +115,8 @@
       "customWidth": "50",
       "content": {
         "version": "KqlItem/1.0",
-        "title": "API Operation Performance",
-        "query": "requests\n| where timestamp > ago(24h)\n| summarize\n    RequestCount = count(),\n    AvgResponseMs = round(avg(duration), 2),\n    P95ResponseMs = round(percentile(duration, 95), 2),\n    FailedRequests = countif(success == false)\n    by name\n| order by RequestCount desc",
+        "title": "API Operation Health — Last 4 Days",
+        "query": "requests\n| where timestamp >= ago(4d)\n| summarize\n    Requests = count(),\n    FailedRequests = countif(success == false),\n    ServerErrors = countif(toint(resultCode) between (500 .. 599))\n    by Operation = name\n| extend FailureRatePct = iff(Requests == 0, 0.0, round(100.0 * todouble(FailedRequests) / todouble(Requests), 2))\n| project Operation, Requests, FailedRequests, ServerErrors, FailureRatePct\n| order by Requests desc\n| take 8",
         "size": 1,
         "queryType": 0,
         "resourceType": "microsoft.insights/components",
@@ -74,75 +124,134 @@
           "/subscriptions/8bb846b6-1057-42bb-a02a-7a64e6a34178/resourceGroups/rg-portfolio/providers/Microsoft.Insights/components/aniket-portfolio-api"
         ],
         "timeContext": {
-          "durationMs": 86400000
+          "durationMs": 345600000
         },
         "visualization": "table"
-      }
-    },
-    {
-      "type": 3,
-      "name": "Recent API Failures",
-      "customWidth": "50",
-      "content": {
-        "version": "KqlItem/1.0",
-        "title": "Recent API Failures",
-        "query": "requests\n| where timestamp > ago(24h)\n| where success == false or toint(resultCode) >= 500\n| project\n    timestamp,\n    name,\n    resultCode,\n    duration,\n    operation_Id,\n    url\n| order by timestamp desc\n| take 3",
-        "size": 1,
-        "queryType": 0,
-        "resourceType": "microsoft.insights/components",
-        "resourceIds": [
-          "/subscriptions/8bb846b6-1057-42bb-a02a-7a64e6a34178/resourceGroups/rg-portfolio/providers/Microsoft.Insights/components/aniket-portfolio-api"
-        ],
-        "timeContext": {
-          "durationMs": 86400000
-        },
-        "visualization": "table"
-      }
-    },
-    {
-      "type": 3,
-      "name": "Exception Analysis",
-      "customWidth": "50",
-      "content": {
-        "version": "KqlItem/1.0",
-        "title": "Exception Analysis",
-        "query": "exceptions\n| where timestamp > ago(24h)\n| summarize ExceptionCount = count() by type\n| order by ExceptionCount desc",
-        "size": 1,
-        "queryType": 0,
-        "resourceType": "microsoft.insights/components",
-        "resourceIds": [
-          "/subscriptions/8bb846b6-1057-42bb-a02a-7a64e6a34178/resourceGroups/rg-portfolio/providers/Microsoft.Insights/components/aniket-portfolio-api"
-        ],
-        "timeContext": {
-          "durationMs": 86400000
-        },
-        "visualization": "barchart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "operations"
       }
     },
     {
       "type": 3,
       "name": "API Availability",
-      "customWidth": "100",
+      "customWidth": "50",
       "content": {
         "version": "KqlItem/1.0",
-        "title": "API Availability",
-        "query": "availabilityResults\n| where timestamp > ago(24h)\n| summarize\n    TotalTests = count(),\n    SuccessfulTests = countif(success == true),\n    FailedTests = countif(success == false),\n    AvailabilityPct = round(\n        100.0 * countif(success == true) / count(), 2\n    ),\n    AvgDurationMs = round(avg(duration), 2)\n    by name, location",
-        "size": 0,
+        "title": "Availability Test Results — Last 4 Days",
+        "query": "availabilityResults\n| where timestamp >= ago(4d)\n| summarize\n    TotalTests = count(),\n    SuccessfulTests = countif(success == true),\n    FailedTests = countif(success == false),\n    AvailabilityPct = round(100.0 * countif(success == true) / count(), 2)\n    by name, location\n| order by name asc",
+        "size": 1,
         "queryType": 0,
         "resourceType": "microsoft.insights/components",
         "resourceIds": [
           "/subscriptions/8bb846b6-1057-42bb-a02a-7a64e6a34178/resourceGroups/rg-portfolio/providers/Microsoft.Insights/components/aniket-portfolio-api"
         ],
         "timeContext": {
-          "durationMs": 86400000
+          "durationMs": 345600000
         },
         "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "operations"
+      }
+    },
+    {
+      "type": 3,
+      "name": "Recent API Failures",
+      "customWidth": "100",
+      "content": {
+        "version": "KqlItem/1.0",
+        "title": "Recent API Failures — Last 4 Days",
+        "query": "requests\n| where timestamp >= ago(4d)\n| where success == false or toint(resultCode) between (500 .. 599)\n| project\n    Timestamp = timestamp,\n    Operation = name,\n    ResultCode = resultCode,\n    Success = success,\n    Url = url,\n    OperationId = operation_Id\n| order by Timestamp desc\n| take 10",
+        "size": 1,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "resourceIds": [
+          "/subscriptions/8bb846b6-1057-42bb-a02a-7a64e6a34178/resourceGroups/rg-portfolio/providers/Microsoft.Insights/components/aniket-portfolio-api"
+        ],
+        "timeContext": {
+          "durationMs": 345600000
+        },
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "operations"
+      }
+    },
+    {
+      "type": 3,
+      "name": "Exception Analysis",
+      "customWidth": "100",
+      "content": {
+        "version": "KqlItem/1.0",
+        "title": "Exception Details — Last 4 Days",
+        "query": "exceptions\n| where timestamp >= ago(4d)\n| summarize\n    ExceptionCount = count(),\n    FirstSeen = min(timestamp),\n    LastSeen = max(timestamp),\n    SampleMessage = take_any(iff(isempty(outerMessage), innermostMessage, outerMessage)),\n    SampleOperation = take_any(operation_Name)\n    by type\n| project\n    ExceptionType = type,\n    ExceptionCount,\n    FirstSeen,\n    LastSeen,\n    SampleOperation,\n    SampleMessage\n| order by ExceptionCount desc",
+        "size": 1,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "resourceIds": [
+          "/subscriptions/8bb846b6-1057-42bb-a02a-7a64e6a34178/resourceGroups/rg-portfolio/providers/Microsoft.Insights/components/aniket-portfolio-api"
+        ],
+        "timeContext": {
+          "durationMs": 345600000
+        },
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "analytics"
+      }
+    },
+    {
+      "type": 3,
+      "name": "Exception Trend",
+      "customWidth": "50",
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "analytics"
+      },
+      "content": {
+        "version": "KqlItem/1.0",
+        "title": "Exception Trend — Last 4 Days",
+        "query": "exceptions\n| where timestamp >= ago(4d)\n| summarize Exceptions = count() by bin(timestamp, 6h), type\n| order by timestamp asc",
+        "size": 1,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "resourceIds": [
+          "/subscriptions/8bb846b6-1057-42bb-a02a-7a64e6a34178/resourceGroups/rg-portfolio/providers/Microsoft.Insights/components/aniket-portfolio-api"
+        ],
+        "timeContext": {
+          "durationMs": 345600000
+        },
+        "visualization": "timechart"
+      }
+    },
+    {
+      "type": 1,
+      "name": "Portfolio Analytics Snapshot",
+      "customWidth": "100",
+      "content": {
+        "json": "## Portfolio Analytics\n\n**Data snapshot:** 2026-11-22 09:56 UTC\n\n| KPI | Value |\n|---|---:|\n| Total visitors | 1,129 |\n| Countries represented | 13 |\n| Resume views | 30 |\n| Resume downloads | 8 |\n| Certificate views | 17 |\n| Certificate downloads | 3 |\n| Portfolio sessions | 6 |\n| Active time | 1 min 4 sec |\n| Appreciations | 2 |\n| Unique appreciators (visitor hashes) | 2 |\n| Appreciation ratio vs. total visitors | 0.18% |\n| Likes without valid dates | 0 |\n\n### Daily Portfolio Appreciations\n\n| Date | Like events | Unique appreciators |\n|---|---:|---:|\n| 2026-11-21 | 2 | 2 |\n\n> Appreciation ratio compares distinct like-event visitor hashes with the cumulative visitor counter. It is not a session-level conversion rate.\n\n### Visitor Geography\n\n| Country | Visitors |\n|---|---:|---:|\n| 🇮🇳 India | 860 |\n| 🇺🇸 United States | 43 |\n| 🇬🇧 United Kingdom | 8 |\n| 🇨🇿 Czechia | 6 |\n| 🇵🇱 Poland | 4 |\n| 🇩🇪 Germany | 3 |\n| 🇸🇪 Sweden | 3 |\n| 🇦🇺 Australia | 3 |\n| 🇸🇬 Singapore | 2 |\n| 🇫🇷 France | 2 |\n| 🇳🇬 Nigeria | 1 |\n| 🇨🇾 Cyprus | 1 |\n| 🇫🇮 Finland | 1 |\n\n### Resume Analytics\n\n| Document | Views | Downloads |\n|---|---:|---:|\n| Resume | 30 | 8 |\n\n### Certificate Analytics\n\n| Certificate | Views | Downloads |\n|---|---:|---:|\n| AI-900 | 1 | 0 |\n| AWS-CCP | 2 | 1 |\n| AZ-104 | 5 | 1 |\n| AZ-900 | 5 | 1 |\n| Google-Cloud-Digital-Leader | 2 | 0 |\n| ITIL-4 | 2 | 0 |\n\n### Portfolio Engagement\n\n| Section | Views | Active seconds |\n|---|---:|---:|\n| Certifications | 4 | 0 |\n| Contact | 5 | 1 |\n| Experience | 5 | 1 |\n| Profile | 8 | 15 |\n| Projects | 5 | 7 |\n| Skills | 5 | 3 |\n\n### Azure Cost Visibility\n\n| Cost Metric | Value |\n|---|---:|\n| Month-to-date cost (rg-portfolio) | INR 72.36 |\n\n| Date | Daily cost |\n|---|---:|---:\n| 2026-11-07 | INR 17.09 |\n| 2026-11-08 | INR 0.04 |\n| 2026-11-09 | INR 21.77 |\n| 2026-11-10 | INR 0.07 |\n| 2026-11-11 | INR 0.05 |\n| 2026-11-12 | INR 0.04 |\n| 2026-11-13 | INR 0.01 |\n| 2026-11-14 | INR 0.00 |\n| 2026-11-15 | INR 0.06 |\n| 2026-11-16 | INR 0.09 |\n| 2026-11-17 | INR 0.07 |\n| 2026-11-18 | INR 0.03 |\n| 2026-11-19 | INR 9.80 |\n| 2026-11-20 | INR 11.18 |\n| 2026-11-21 | INR 11.28 |\n| 2026-11-22 | INR 0.80 |\n\n### Security and Governance\n\n- Cost data is retrieved from Azure Cost Management.\n- Review resource usage and monitoring retention regularly.\n- Budget configuration and alert thresholds: not yet configured.\n- CI/CD identity permissions and deployment approvals: require separate verification.\n\n> Portfolio and cost metrics are snapshots captured during workbook deployment. Run this deployment again to refresh them.",
+        "style": "info"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "analytics"
       }
     },
     {
       "type": 3,
       "name": "Azure Resource Inventory",
-      "customWidth": "100",
+      "customWidth": "50",
       "content": {
         "version": "KqlItem/1.0",
         "title": "Azure Resource Inventory",
@@ -151,12 +260,17 @@
         "queryType": 1,
         "resourceType": "microsoft.resourcegraph/resources",
         "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "analytics"
       }
     },
     {
       "type": 3,
       "name": "Monitoring Rules Inventory",
-      "customWidth": "100",
+      "customWidth": "50",
       "content": {
         "version": "KqlItem/1.0",
         "title": "Monitoring Rules and Health Checks",
@@ -165,13 +279,21 @@
         "queryType": 1,
         "resourceType": "microsoft.resourcegraph/resources",
         "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "analytics"
       }
     }
   ],
   "styleSettings": {},
   "isLocked": false,
   "fallbackResourceIds": [
-    "/subscriptions/8bb846b6-1057-42bb-a02a-7a64e6a34178/resourceGroups/rg-portfolio/providers/Microsoft.Insights/components/aniket-portfolio-api"
+    "/subscriptions/8bb846b6-1057-42bb-a02a-7a64e6a34178/resourceGroups/rg-portfolio/providers/microsoft.insights/components/aniket-portfolio-api"
   ],
-  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json",
+  "defaultResourceIds": [
+    "/subscriptions/8bb846b6-1057-42bb-a02a-7a64e6a34178/resourceGroups/rg-portfolio/providers/microsoft.insights/components/aniket-portfolio-api"
+  ]
 }

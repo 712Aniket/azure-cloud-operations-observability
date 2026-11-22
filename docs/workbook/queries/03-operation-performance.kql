@@ -1,9 +1,11 @@
 requests
-| where timestamp > ago(24h)
+| where timestamp >= ago(4d)
 | summarize
-    RequestCount = count(),
-    AvgResponseMs = round(avg(duration), 2),
-    P95ResponseMs = round(percentile(duration, 95), 2),
-    FailedRequests = countif(success == false)
-    by name
-| order by RequestCount desc
+    Requests = count(),
+    FailedRequests = countif(success == false),
+    ServerErrors = countif(toint(resultCode) between (500 .. 599))
+    by Operation = name
+| extend FailureRatePct = iff(Requests == 0, 0.0, round(100.0 * todouble(FailedRequests) / todouble(Requests), 2))
+| project Operation, Requests, FailedRequests, ServerErrors, FailureRatePct
+| order by Requests desc
+| take 8
