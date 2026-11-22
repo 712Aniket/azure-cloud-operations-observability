@@ -12,6 +12,8 @@ The platform uses Azure Monitor, Application Insights, Log Analytics, KQL, Terra
 - Investigate application performance and failures.
 - Monitor API availability using synthetic web tests.
 - Build operational dashboards using Azure Monitor Workbooks.
+- Track portfolio visitor, resume and certificate engagement analytics.
+- Integrate Azure Cost Management data for cost visibility.
 - Manage monitoring infrastructure through Terraform.
 - Automate Terraform validation and deployment using GitHub Actions.
 - Authenticate GitHub Actions securely using Microsoft Entra ID OIDC.
@@ -35,6 +37,11 @@ flowchart TD
     ACTION --> EMAIL["Email Notification"]
 
     WORKBOOK["Azure Monitor Workbook"] --> LOGS
+
+    COST["Azure Cost Management"] --> DEPLOY["Python Workbook Deployment Script"]
+    COSMOS --> DEPLOY
+    DEPLOY --> ARM["Azure Resource Manager API"]
+    ARM --> WORKBOOK
 
     REPO["GitHub Repository"] --> ACTIONS["GitHub Actions"]
     ACTIONS --> OIDC["Microsoft Entra ID OIDC"]
@@ -75,7 +82,7 @@ Region: `Central India`
 
 Application Insights retention is configured for 90 days.
 
-The monitoring Workbook is currently managed through the Azure Portal and is not one of the five Terraform-managed resources.
+The Azure Monitor Workbook is deployed using `scripts/deploy_workbook.py` through the Azure Resource Manager API. It is maintained separately from the five Terraform-managed monitoring resources.
 
 ## Monitoring Configuration
 
@@ -280,6 +287,7 @@ azure-cloud-operations-observability/
 ├── docs/
 │   ├── screenshots/
 │   ├── workbook/
+│   │   └── queries/
 │   └── runbooks/
 │
 ├── terraform/
@@ -289,6 +297,8 @@ azure-cloud-operations-observability/
 │   ├── providers.tf
 │   └── variables.tf
 │
+├── scripts/
+│   └── deploy_workbook.py
 ├── work_items/
 ├── config.py
 ├── main.py
@@ -300,39 +310,43 @@ azure-cloud-operations-observability/
 
 ## Documentation and Evidence
 
-Monitoring screenshots are maintained in `docs/screenshots/`.
+Monitoring and operational evidence is maintained in `docs/screenshots/`.
 
-The exported Azure Monitor Workbook configuration is maintained in `docs/workbook/`.
+The Azure Monitor Workbook definition and KQL queries are maintained in `docs/workbook/`.
 
-Operational procedures will be documented in `docs/runbooks/`.
+Workbook deployment is handled by `scripts/deploy_workbook.py`.
+
+Operational procedures are documented in `docs/runbooks/`, including API availability, API failure investigation and Application Insights troubleshooting.
 
 ## Project Status
 
 **Status: In Progress**
 
 Completed:
-- Azure monitoring infrastructure.
-- Application Insights integration.
-- Log Analytics and KQL investigation.
-- HTTP failure alerting.
-- API availability monitoring.
-- Azure Monitor Workbook.
-- Terraform infrastructure management.
-- Remote Terraform state.
-- GitHub Actions CI/CD.
-- OIDC authentication.
+- Azure monitoring infrastructure and Application Insights integration.
+- Log Analytics investigation using KQL.
+- HTTP 5xx failure alerting and API availability monitoring.
+- Azure Monitor Workbook with 10 dashboard components.
+- Portfolio visitor, resume and certificate analytics in the workbook.
+- Azure Cost Management integration for cost visibility.
+- Python-based Azure Workbook deployment and verification.
+- Terraform infrastructure management and remote state.
+- GitHub Actions Terraform CI and deployment workflows.
+- Microsoft Entra ID OIDC authentication.
 - Separate CI and deployment identities.
-- Manual deployment approval.
-- Controlled alert testing.
+- Protected deployment approval.
+- Controlled failure testing and alert notification verification.
+- Three operational runbooks and monitoring evidence screenshots.
 
 Remaining:
-- Operational runbooks.
-- Documentation and architecture evidence.
-- Final project review and validation.
+- Final repository, documentation and security review.
+- Review cost governance options; Azure budget thresholds and budget alerts are not currently configured.
 
 ## Cost Management
 
 The project uses the existing Azure Free Trial subscription and available credits.
+
+Cost visibility is integrated into the Azure Monitor Workbook using Azure Cost Management data.
 
 Cost-conscious practices:
 - Reuse existing Azure resources.
@@ -340,6 +354,8 @@ Cost-conscious practices:
 - Keep monitoring configuration appropriate for the project.
 - Review Azure Cost Management regularly.
 - Avoid upgrading the subscription solely for testing.
+
+Current limitation: Cost data is visible in the workbook, but budget thresholds and budget alerts have not been configured. Cost visibility should not be interpreted as automated budget enforcement or notification.
 
 ## Author
 
