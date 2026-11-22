@@ -395,6 +395,123 @@ lines.extend([
     "workbook deployment. Run this deployment again to refresh them."
 ])
 
+def build_portfolio_analytics_groups(markdown):
+    """Split the generated portfolio analytics Markdown into two 50% groups."""
+    import re
+
+    def table_blocks(text):
+        lines = text.splitlines()
+        result = []
+        i = 0
+        while i < len(lines):
+            if lines[i].strip().startswith("|") and lines[i].strip().endswith("|"):
+                start = i
+                while i < len(lines) and lines[i].strip().startswith("|") and lines[i].strip().endswith("|"):
+                    i += 1
+                result.append((start, i, lines[start:i]))
+            else:
+                i += 1
+        return result
+
+    def parse_rows(block):
+        rows = []
+        for line in block:
+            cells = [cell.strip() for cell in line.strip()[1:-1].split("|")]
+            if all(re.fullmatch(r":?-{3,}:?", cell.replace(" ", "")) for cell in cells):
+                continue
+            rows.append(cells)
+        return rows
+
+    def render(headers, rows):
+        fmt = lambda cells: "| " + " | ".join(cells) + " |"
+        return "\n".join([fmt(headers), fmt(["---"] * len(headers)), *[fmt(row) for row in rows]])
+
+    def paired(rows, width=2):
+        result = []
+        for index in range(1, len(rows), 2):
+            first = rows[index]
+            second = rows[index + 1] if index + 1 < len(rows) else [""] * width
+            result.append(first + second)
+        return result
+
+    lines = markdown.splitlines()
+    starts = [i for i, line in enumerate(lines) if line.startswith("### ")]
+    if not starts:
+        raise RuntimeError("Portfolio analytics headings missing")
+    preamble = "\n".join(lines[:starts[0]]).strip()
+    sections = {}
+    for n, start in enumerate(starts):
+        end = starts[n + 1] if n + 1 < len(starts) else len(lines)
+        sections[lines[start][4:].strip()] = "\n".join(lines[start:end]).strip()
+
+    kpi_blocks = table_blocks(preamble)
+    kpi_rows = parse_rows(kpi_blocks[0][2])
+    kpi_table = render(["KPI", "Value", "KPI", "Value"], paired(kpi_rows, 2))
+    plines = preamble.splitlines()
+    start, end, _ = kpi_blocks[0]
+    plines[start:end] = kpi_table.splitlines()
+    preamble = "\n".join(plines)
+
+    geo = sections["Visitor Geography"]
+    gb = table_blocks(geo)
+    gr = parse_rows(gb[0][2])
+    gt = render(["Country", "Visitors", "Country", "Visitors"], paired(gr, 2))
+    gl = geo.splitlines()
+    gs, ge, _ = gb[0]
+    gl[gs:ge] = gt.splitlines()
+    sections["Visitor Geography"] = "\n".join(gl)
+
+    cost = sections["Azure Cost Visibility"]
+    cb = table_blocks(cost)
+    if len(cb) > 1:
+        cr = parse_rows(cb[1][2])
+        if cr and cr[0][:2] == ["Date", "Daily cost"]:
+            ct = render(["Date", "Daily cost", "Date", "Daily cost"], paired(cr, 2))
+            cl = cost.splitlines()
+            cs, ce, _ = cb[1]
+            cl[cs:ce] = ct.splitlines()
+            cost = "\n".join(cl)
+
+    left_md = "\n\n".join([
+        preamble,
+        sections["Visitor Geography"],
+        sections["Resume Analytics"],
+        sections["Certificate Analytics"],
+    ])
+    right_md = "\n\n".join([
+        sections["Portfolio Engagement"],
+        sections["Daily Portfolio Appreciations"],
+        cost,
+        sections["Security and Governance"],
+    ])
+
+    def group(name, child, body):
+        return {
+            "type": 12,
+            "name": name,
+            "customWidth": "50",
+            "conditionalVisibility": {
+                "parameterName": "selectedTab",
+                "comparison": "isEqualTo",
+                "value": "analytics"
+            },
+            "content": {
+                "version": "NotebookGroup/1.0",
+                "groupType": "editable",
+                "items": [{
+                    "type": 1,
+                    "name": child,
+                    "content": {"json": body, "style": "plain"}
+                }]
+            }
+        }
+
+    return [
+        group("Portfolio Analytics — Audience & Documents", "Audience, Geography and Documents", left_md),
+        group("Portfolio Analytics — Engagement & Cost", "Engagement, Cost and Governance", right_md),
+    ]
+
+
 snapshot_item = {
     "type": 1,
     "name": "Portfolio Analytics Snapshot",
@@ -411,6 +528,8 @@ snapshot_item["conditionalVisibility"] = {
     "value": "analytics"
 }
 
+portfolio_groups = build_portfolio_analytics_groups(snapshot_item["content"]["json"])
+
 # --------------------------------------------------
 # LOAD EXISTING WORKBOOK
 # --------------------------------------------------
@@ -421,9 +540,14 @@ with open(workbook_path, encoding="utf-8") as f:
     workbook = json.load(f)
 
 # Make deployment repeatable.
+managed_portfolio_names = {
+    "Portfolio Analytics Snapshot",
+    "Portfolio Analytics — Audience & Documents",
+    "Portfolio Analytics — Engagement & Cost"
+}
 workbook["items"] = [
     item for item in workbook["items"]
-    if item.get("name") != "Portfolio Analytics Snapshot"
+    if item.get("name") not in managed_portfolio_names
 ]
 
 # Fix boolean comparison in the availability query.
@@ -441,7 +565,8 @@ snapshot_insert_at = next(
      if item.get("name") == "Azure Resource Inventory"),
     len(workbook["items"])
 )
-workbook["items"].insert(snapshot_insert_at, snapshot_item)
+for offset, portfolio_group in enumerate(portfolio_groups):
+    workbook["items"].insert(snapshot_insert_at + offset, portfolio_group)
 
 # --------------------------------------------------
 # ADD LIVE AZURE RESOURCE INVENTORY
