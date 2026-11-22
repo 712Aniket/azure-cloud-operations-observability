@@ -1,729 +1,158 @@
+#!/usr/bin/env python3
+"""Deploy the canonical Project 2 workbook to its primary Azure resource.
+
+Source of truth: docs/workbook/workbook.json (exported from the saved Azure Portal layout).
+Default invocation performs preflight only. Use --deploy to update the primary resource.
+The retired workbook ID is protected and is never a deployment target.
+"""
+from __future__ import annotations
+
+import argparse
 import json
-import os
 import subprocess
-import traceback
-from datetime import datetime, timezone
-from collections import defaultdict
-
-from azure.identity import DefaultAzureCredential
-from azure.cosmos import CosmosClient
-
-SUBSCRIPTION = subprocess.check_output(
-    ["az", "account", "show", "--query", "id", "-o", "tsv"],
-    text=True
-).strip()
-
-ENDPOINT = os.environ["COSMOS_DB_ENDPOINT"]
+from pathlib import Path
 
 RESOURCE_GROUP = "rg-portfolio"
-WORKBOOK_ID = "28236c19-2756-48f5-8e4e-a176a4a8210d"
+PRIMARY_WORKBOOK_ID = "43a2aae2-21ba-417a-9a09-409792adcd64"
+RETIRED_WORKBOOK_ID = "28236c19-2756-48f5-8e4e-a176a4a8210d"
+WORKBOOK_DISPLAY_NAME = "Azure Cloud Operations & Observability Platform"
+WORKBOOK_PATH = Path("docs/workbook/workbook.json")
 
-AI_ID = (
-    f"/subscriptions/{SUBSCRIPTION}/resourceGroups/{RESOURCE_GROUP}"
-    "/providers/Microsoft.Insights/components/aniket-portfolio-api"
-)
 
-WORKBOOK_URL = (
-    f"https://management.azure.com/subscriptions/{SUBSCRIPTION}"
-    f"/resourceGroups/{RESOURCE_GROUP}"
-    f"/providers/Microsoft.Insights/workbooks/{WORKBOOK_ID}"
-    "?api-version=2023-06-01"
-)
+def az_json(args: list[str]) -> dict:
+    completed = subprocess.run(["az", *args], check=True, capture_output=True, text=True)
+    return json.loads(completed.stdout)
 
-print("Connecting to Cosmos DB...")
 
-client = CosmosClient(
-    ENDPOINT,
-    credential=DefaultAzureCredential()
-)
+def validate_workbook(workbook: dict) -> int:
+    items = workbook.get("items")
+    if not isinstance(items, list) or len(items) < 20:
+        raise SystemExit("Preflight failed: workbook is missing or has too few components.")
+    names = []
+    for item in items:
+        content = item.get("content", {})
+        if isinstance(content, str):
+            try:
+                content = json.loads(content)
+            except json.JSONDecodeError:
+                content = {}
+        names.append(item.get("name") or content.get("title") or "")
+    if any(not name for name in names) or len(names) != len(set(names)):
+        raise SystemExit("Preflight failed: component names are missing or duplicated.")
+    required = {
+        "Project 2 Overview", "Operations and Monitoring Section",
+        "API Health - KPI Summary", "Portfolio Analytics Section",
+        "Portfolio KPI Summary", "Visitor Geography", "Resume Analytics",
+        "Certificate Analytics", "Security and Governance", "RBAC Role Assignments",
+        "Azure Resource Inventory", "Monitoring Rules Inventory",
+    }
+    missing = sorted(required - set(names))
+    if missing:
+        raise SystemExit(f"Preflight failed: missing required components: {missing}")
 
-container = (
-    client.get_database_client("portfolio-db")
-    .get_container_client("visitor-counters")
-)
+    def has_tabs(rows: list[dict]) -> bool:
+        for row in rows:
+            if (row.get("conditionalVisibility") or {}).get("parameterName") == "selectedTab":
+                return True
+            content = row.get("content", {})
+            nested = content.get("items", []) if isinstance(content, dict) else []
+            if nested and has_tabs(nested):
+                return True
+        return False
+    if has_tabs(items):
+        raise SystemExit("Preflight failed: tab-based conditional visibility is present.")
+    return len(items)
 
-def query_items(query):
-    return list(container.query_items(
-        query=query,
-        enable_cross_partition_query=True
-    ))
 
-# --------------------------------------------------
-# READ EXISTING ANALYTICS
-# --------------------------------------------------
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--deploy", action="store_true", help="Update the primary Azure Workbook resource.")
+    args = parser.parse_args()
 
-total_doc = container.read_item(
-    item="total",
-    partition_key="total"
-)
+    if PRIMARY_WORKBOOK_ID == RETIRED_WORKBOOK_ID:
+        raise SystemExit("Safety stop: primary and retired workbook IDs must differ.")
+    if not WORKBOOK_PATH.is_file():
+        raise SystemExit(f"Workbook source not found: {WORKBOOK_PATH}")
 
-total_visitors = total_doc.get("visitor_count", 0)
-
-countries = query_items("""
-    SELECT * FROM c
-    WHERE STARTSWITH(c.id, 'country-')
-""")
-
-events = query_items("""
-    SELECT * FROM c
-    WHERE STARTSWITH(c.id, 'analytics-')
-""")
-
-engagement = query_items("""
-    SELECT * FROM c
-    WHERE STARTSWITH(c.id, 'engagement-')
-""")
-
-print("Cosmos DB data retrieved successfully.")
-
-# --------------------------------------------------
-# AGGREGATE PORTFOLIO ANALYTICS
-# --------------------------------------------------
-
-event_summary = defaultdict(int)
-
-for item in events:
-    key = (
-        item.get("item_type", ""),
-        item.get("item_id", ""),
-        item.get("event_type", "")
+    workbook = json.loads(WORKBOOK_PATH.read_text(encoding="utf-8"))
+    count = validate_workbook(workbook)
+    subscription = subprocess.check_output(
+        ["az", "account", "show", "--query", "id", "-o", "tsv"], text=True
+    ).strip()
+    base = (
+        f"https://management.azure.com/subscriptions/{subscription}"
+        f"/resourceGroups/{RESOURCE_GROUP}/providers/Microsoft.Insights/workbooks/{PRIMARY_WORKBOOK_ID}"
     )
-    event_summary[key] += item.get("event_count", 0)
-
-resume_views = event_summary[("resume", "resume", "view")]
-resume_downloads = event_summary[("resume", "resume", "download")]
-
-certificate_views = sum(
-    value for (kind, _, event), value in event_summary.items()
-    if kind == "certificate" and event == "view"
-)
-
-certificate_downloads = sum(
-    value for (kind, _, event), value in event_summary.items()
-    if kind == "certificate" and event == "download"
-)
-
-sessions = 0
-active_seconds = 0
-like_events = []
-
-sections = defaultdict(lambda: {"views": 0, "seconds": 0})
-
-for item in engagement:
-
-    metric = item.get("metric_type")
-
-    if metric == "session":
-        sessions += item.get("session_count", 0)
-        active_seconds += item.get("total_active_seconds", 0)
-
-    elif metric == "section":
-        section = item.get("section_id", "unknown")
-        sections[section]["views"] += item.get("view_count", 0)
-        sections[section]["seconds"] += item.get(
-            "total_active_seconds", 0
+    current = az_json([
+        "rest", "--method", "get",
+        "--url", base + "?api-version=2021-08-01&canFetchContent=true",
+        "--output", "json",
+    ])
+    current_props = current.get("properties", {})
+    if current_props.get("displayName") not in {
+        "Portfolio Analytics Layout Preview", WORKBOOK_DISPLAY_NAME
+    }:
+        raise SystemExit(
+            "Safety stop: primary Azure resource has an unexpected display name: "
+            f"{current_props.get('displayName')!r}"
         )
 
-    elif metric == "like":
-        like_events.append(item)
+    print("PRIMARY WORKBOOK PREFLIGHT: PASS")
+    print("Target ID:", PRIMARY_WORKBOOK_ID)
+    print("Current Azure name:", current_props.get("displayName"))
+    print("Target display name:", WORKBOOK_DISPLAY_NAME)
+    print("Components:", count)
+    print("Source:", WORKBOOK_PATH)
+    print("Retired workbook (protected):", RETIRED_WORKBOOK_ID)
+    print("Production/retired resource: NOT targeted")
 
-# Total appreciation events.
-likes = len(like_events)
+    if not args.deploy:
+        print("\nPreflight only. No Azure resources changed. Add --deploy to apply this exact local workbook.")
+        return
 
-# Distinct visitor hashes across all recorded appreciation events.
-unique_appreciators = {
-    str(item.get("visitor_hash")).strip()
-    for item in like_events
-    if item.get("visitor_hash")
-}
-
-# Daily appreciation activity.
-daily_likes = defaultdict(int)
-daily_unique_appreciators = defaultdict(set)
-likes_missing_event_date = 0
-
-for item in like_events:
-    raw_event_date = str(item.get("event_date", "")).strip()
-
-    if not raw_event_date:
-        likes_missing_event_date += 1
-        continue
-
-    try:
-        event_day = datetime.strptime(
-            raw_event_date, "%Y%m%d"
-        ).strftime("%Y-%m-%d")
-    except ValueError:
-        likes_missing_event_date += 1
-        continue
-
-    daily_likes[event_day] += 1
-
-    visitor_hash = str(item.get("visitor_hash", "")).strip()
-    if visitor_hash:
-        daily_unique_appreciators[event_day].add(visitor_hash)
-
-# Aggregate comparison against the cumulative visitor counter.
-appreciation_rate = (
-    100.0 * len(unique_appreciators) / total_visitors
-    if total_visitors else 0.0
-)
-
-timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-
-# --------------------------------------------------
-# AZURE COST MANAGEMENT
-# --------------------------------------------------
-
-cost_query = {
-    "type": "ActualCost",
-    "timeframe": "MonthToDate",
-    "dataset": {
-        "granularity": "Daily",
-        "aggregation": {
-            "totalCost": {
-                "name": "PreTaxCost",
-                "function": "Sum"
-            }
+    payload = {
+        "location": current.get("location", "centralindia"),
+        "kind": current.get("kind", "shared"),
+        "properties": {
+            "displayName": WORKBOOK_DISPLAY_NAME,
+            "description": (
+                "Primary Azure Cloud Operations & Observability Platform workbook. "
+                "The serialized dashboard layout is sourced from the approved Azure Portal export."
+            ),
+            "category": current_props.get("category", "workbook"),
+            "version": workbook.get("version", "Notebook/1.0"),
+            "sourceId": current_props.get("sourceId", f"/subscriptions/{subscription}/resourceGroups/{RESOURCE_GROUP}"),
+            "serializedData": json.dumps(workbook, separators=(",", ":"), ensure_ascii=False),
         },
-        "grouping": [
-            {
-                "type": "Dimension",
-                "name": "ResourceGroupName"
-            }
-        ]
     }
-}
+    payload_path = Path("/tmp/project2-primary-workbook-payload.json")
+    payload_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    put_url = base + "?api-version=2023-06-01"
+    subprocess.run([
+        "az", "rest", "--method", "put", "--url", put_url,
+        "--body", f"@{payload_path}", "--output", "none",
+    ], check=True)
 
-cost_error = None
-daily_costs = []
-month_to_date_cost = 0.0
-cost_currency = "INR"
-
-try:
-    cost_response = json.loads(subprocess.check_output(
-        [
-            "az", "rest",
-            "--method", "post",
-            "--url",
-            f"https://management.azure.com/subscriptions/{SUBSCRIPTION}/providers/Microsoft.CostManagement/query?api-version=2025-03-01",
-            "--body", json.dumps(cost_query),
-            "--output", "json"
-        ],
-        text=True
-    ))
-
-    cost_properties = cost_response.get("properties", {})
-    cost_columns = [
-        column["name"]
-        for column in cost_properties.get("columns", [])
-    ]
-
-    for row in cost_properties.get("rows", []):
-        record = dict(zip(cost_columns, row))
-
-        if record.get("ResourceGroupName") != RESOURCE_GROUP:
-            continue
-
-        amount = float(record.get("PreTaxCost", 0) or 0)
-        usage_date = str(record.get("UsageDate", ""))
-
-        if usage_date:
-            usage_date = datetime.strptime(
-                usage_date, "%Y%m%d"
-            ).strftime("%Y-%m-%d")
-
-        cost_currency = record.get("Currency", cost_currency)
-        month_to_date_cost += amount
-
-        daily_costs.append({
-            "date": usage_date,
-            "cost": amount
-        })
-
-    daily_costs.sort(key=lambda item: item["date"])
-
-    print(
-        f"Azure cost data retrieved: "
-        f"{cost_currency} {month_to_date_cost:.2f}"
-    )
-
-except Exception as exc:
-    cost_error = str(exc)
-    print(f"WARNING: Azure cost data unavailable: {cost_error}")
-    traceback.print_exc()
-
-
-
-# --------------------------------------------------
-# BUILD ANALYTICS SNAPSHOT
-# --------------------------------------------------
-
-lines = [
-    "## Portfolio Analytics",
-    "",
-    f"**Data snapshot:** {timestamp}",
-    "",
-    "| KPI | Value |",
-    "|---|---:|",
-    f"| Total visitors | {total_visitors:,} |",
-    f"| Countries represented | {len(countries)} |",
-    f"| Resume views | {resume_views} |",
-    f"| Resume downloads | {resume_downloads} |",
-    f"| Certificate views | {certificate_views} |",
-    f"| Certificate downloads | {certificate_downloads} |",
-    f"| Portfolio sessions | {sessions} |",
-    f"| Active time | {active_seconds // 60} min {active_seconds % 60} sec |",
-    f"| Appreciations | {likes} |",
-    f"| Unique appreciators (visitor hashes) | {len(unique_appreciators)} |",
-    f"| Appreciation ratio vs. total visitors | {appreciation_rate:.2f}% |",
-    f"| Likes without valid dates | {likes_missing_event_date} |",
-    "",
-    "### Daily Portfolio Appreciations",
-    "",
-    "| Date | Like events | Unique appreciators |",
-    "|---|---:|---:|"
-]
-
-for date in sorted(daily_likes):
-    lines.append(
-        f"| {date} | {daily_likes[date]} | "
-        f"{len(daily_unique_appreciators[date])} |"
-    )
-
-if not daily_likes:
-    lines.append("| No dated appreciation events | 0 | 0 |")
-
-lines.extend([
-    "",
-    "> Appreciation ratio compares distinct like-event visitor hashes "
-    "with the cumulative visitor counter. It is not a session-level "
-    "conversion rate.",
-    "",
-    "### Visitor Geography",
-    "",
-    "| Country | Visitors |",
-    "|---|---:|---:|"
-])
-
-for country in sorted(
-    countries,
-    key=lambda x: x.get("visitor_count", 0),
-    reverse=True
-):
-    lines.append(
-        f"| {country.get('flag', '')} {country.get('country_name', 'Unknown')} "
-        f"| {country.get('visitor_count', 0):,} |"
-    )
-
-lines.extend([
-    "",
-    "### Resume Analytics",
-    "",
-    "| Document | Views | Downloads |",
-    "|---|---:|---:|",
-    f"| Resume | {resume_views} | {resume_downloads} |",
-    "",
-    "### Certificate Analytics",
-    "",
-    "| Certificate | Views | Downloads |",
-    "|---|---:|---:|"
-])
-
-certificate_ids = sorted({
-    item_id for (kind, item_id, _), value in event_summary.items()
-    if kind == "certificate"
-})
-
-for cert in certificate_ids:
-    views = event_summary[("certificate", cert, "view")]
-    downloads = event_summary[("certificate", cert, "download")]
-    lines.append(f"| {cert} | {views} | {downloads} |")
-
-lines.extend([
-    "",
-    "### Portfolio Engagement",
-    "",
-    "| Section | Views | Active seconds |",
-    "|---|---:|---:|"
-])
-
-for section, metrics in sorted(sections.items()):
-    lines.append(
-        f"| {section.title()} | "
-        f"{metrics['views']} | {metrics['seconds']} |"
-    )
-
-lines.extend([
-    "",
-    "### Azure Cost Visibility",
-    "",
-    "| Cost Metric | Value |",
-    "|---|---:|"
-])
-
-if cost_error:
-    lines.append("| Cost data status | Unavailable - check deployment logs |")
-else:
-    lines.append(
-        f"| Month-to-date cost ({RESOURCE_GROUP}) "
-        f"| {cost_currency} {month_to_date_cost:.2f} |"
-    )
-    lines.extend([
-        "",
-        "| Date | Daily cost |",
-        "|---|---:|---:"
+    verify = az_json([
+        "rest", "--method", "get",
+        "--url", base + "?api-version=2021-08-01&canFetchContent=true",
+        "--output", "json",
     ])
+    props = verify.get("properties", {})
+    serialized = props.get("serializedData")
+    if not serialized:
+        raise SystemExit("Deployment verification failed: Azure returned no serializedData.")
+    deployed = json.loads(serialized) if isinstance(serialized, str) else serialized
+    deployed_count = validate_workbook(deployed)
+    if props.get("displayName") != WORKBOOK_DISPLAY_NAME or deployed_count != count:
+        raise SystemExit("Deployment verification failed: display name or component count differs.")
 
-    for entry in daily_costs:
-        lines.append(
-            f"| {entry['date']} | "
-            f"{cost_currency} {entry['cost']:.2f} |"
-        )
-
-lines.extend([
-    "",
-    "### Security and Governance",
-    "",
-    "- Cost data is retrieved from Azure Cost Management.",
-    "- Review resource usage and monitoring retention regularly.",
-    "- Budget configuration and alert thresholds: not yet configured.",
-    "- CI/CD identity permissions and deployment approvals: "
-    "require separate verification.",
-    "",
-    "> Portfolio and cost metrics are snapshots captured during "
-    "workbook deployment. Run this deployment again to refresh them."
-])
-
-def build_portfolio_analytics_groups(markdown):
-    """Split the generated portfolio analytics Markdown into two 50% groups."""
-    import re
-
-    def table_blocks(text):
-        lines = text.splitlines()
-        result = []
-        i = 0
-        while i < len(lines):
-            if lines[i].strip().startswith("|") and lines[i].strip().endswith("|"):
-                start = i
-                while i < len(lines) and lines[i].strip().startswith("|") and lines[i].strip().endswith("|"):
-                    i += 1
-                result.append((start, i, lines[start:i]))
-            else:
-                i += 1
-        return result
-
-    def parse_rows(block):
-        rows = []
-        for line in block:
-            cells = [cell.strip() for cell in line.strip()[1:-1].split("|")]
-            if all(re.fullmatch(r":?-{3,}:?", cell.replace(" ", "")) for cell in cells):
-                continue
-            rows.append(cells)
-        return rows
-
-    def render(headers, rows):
-        fmt = lambda cells: "| " + " | ".join(cells) + " |"
-        return "\n".join([fmt(headers), fmt(["---"] * len(headers)), *[fmt(row) for row in rows]])
-
-    def paired(rows, width=2):
-        result = []
-        for index in range(1, len(rows), 2):
-            first = rows[index]
-            second = rows[index + 1] if index + 1 < len(rows) else [""] * width
-            result.append(first + second)
-        return result
-
-    lines = markdown.splitlines()
-    starts = [i for i, line in enumerate(lines) if line.startswith("### ")]
-    if not starts:
-        raise RuntimeError("Portfolio analytics headings missing")
-    preamble = "\n".join(lines[:starts[0]]).strip()
-    sections = {}
-    for n, start in enumerate(starts):
-        end = starts[n + 1] if n + 1 < len(starts) else len(lines)
-        sections[lines[start][4:].strip()] = "\n".join(lines[start:end]).strip()
-
-    kpi_blocks = table_blocks(preamble)
-    kpi_rows = parse_rows(kpi_blocks[0][2])
-    kpi_table = render(["KPI", "Value", "KPI", "Value"], paired(kpi_rows, 2))
-    plines = preamble.splitlines()
-    start, end, _ = kpi_blocks[0]
-    plines[start:end] = kpi_table.splitlines()
-    preamble = "\n".join(plines)
-
-    geo = sections["Visitor Geography"]
-    gb = table_blocks(geo)
-    gr = parse_rows(gb[0][2])
-    gt = render(["Country", "Visitors", "Country", "Visitors"], paired(gr, 2))
-    gl = geo.splitlines()
-    gs, ge, _ = gb[0]
-    gl[gs:ge] = gt.splitlines()
-    sections["Visitor Geography"] = "\n".join(gl)
-
-    cost = sections["Azure Cost Visibility"]
-    cb = table_blocks(cost)
-    if len(cb) > 1:
-        cr = parse_rows(cb[1][2])
-        if cr and cr[0][:2] == ["Date", "Daily cost"]:
-            ct = render(["Date", "Daily cost", "Date", "Daily cost"], paired(cr, 2))
-            cl = cost.splitlines()
-            cs, ce, _ = cb[1]
-            cl[cs:ce] = ct.splitlines()
-            cost = "\n".join(cl)
-
-    left_md = "\n\n".join([
-        preamble,
-        sections["Visitor Geography"],
-        sections["Resume Analytics"],
-        sections["Certificate Analytics"],
-    ])
-    right_md = "\n\n".join([
-        sections["Portfolio Engagement"],
-        sections["Daily Portfolio Appreciations"],
-        cost,
-        sections["Security and Governance"],
-    ])
-
-    def group(name, child, body):
-        return {
-            "type": 12,
-            "name": name,
-            "customWidth": "50",
-            "conditionalVisibility": {
-                "parameterName": "selectedTab",
-                "comparison": "isEqualTo",
-                "value": "analytics"
-            },
-            "content": {
-                "version": "NotebookGroup/1.0",
-                "groupType": "editable",
-                "items": [{
-                    "type": 1,
-                    "name": child,
-                    "content": {"json": body, "style": "plain"}
-                }]
-            }
-        }
-
-    return [
-        group("Portfolio Analytics — Audience & Documents", "Audience, Geography and Documents", left_md),
-        group("Portfolio Analytics — Engagement & Cost", "Engagement, Cost and Governance", right_md),
-    ]
+    print("\nPRIMARY WORKBOOK DEPLOYMENT: PASS")
+    print("Name:", props.get("displayName"))
+    print("ID:", PRIMARY_WORKBOOK_ID)
+    print("Components:", deployed_count)
+    print("Retired workbook:", RETIRED_WORKBOOK_ID, "— untouched")
 
 
-snapshot_item = {
-    "type": 1,
-    "name": "Portfolio Analytics Snapshot",
-    "customWidth": "100",
-    "content": {
-        "json": "\n".join(lines),
-        "style": "info"
-    }
-}
-
-snapshot_item["conditionalVisibility"] = {
-    "parameterName": "selectedTab",
-    "comparison": "isEqualTo",
-    "value": "analytics"
-}
-
-portfolio_groups = build_portfolio_analytics_groups(snapshot_item["content"]["json"])
-
-# --------------------------------------------------
-# LOAD EXISTING WORKBOOK
-# --------------------------------------------------
-
-workbook_path = "docs/workbook/workbook.json"
-
-with open(workbook_path, encoding="utf-8") as f:
-    workbook = json.load(f)
-
-# Make deployment repeatable.
-managed_portfolio_names = {
-    "Portfolio Analytics Snapshot",
-    "Portfolio Analytics — Audience & Documents",
-    "Portfolio Analytics — Engagement & Cost"
-}
-workbook["items"] = [
-    item for item in workbook["items"]
-    if item.get("name") not in managed_portfolio_names
-]
-
-# Fix boolean comparison in the availability query.
-for item in workbook["items"]:
-    if item.get("name") == "API Availability":
-        item["content"]["query"] = item["content"]["query"].replace(
-            "success == 1", "success == true"
-        ).replace(
-            "success == 0", "success == false"
-        )
-
-# Insert snapshot after the title.
-snapshot_insert_at = next(
-    (index for index, item in enumerate(workbook["items"])
-     if item.get("name") == "Azure Resource Inventory"),
-    len(workbook["items"])
-)
-for offset, portfolio_group in enumerate(portfolio_groups):
-    workbook["items"].insert(snapshot_insert_at + offset, portfolio_group)
-
-# --------------------------------------------------
-# ADD LIVE AZURE RESOURCE INVENTORY
-# --------------------------------------------------
-
-def resource_query(name, title, query, width="100"):
-    return {
-        "type": 3,
-        "name": name,
-        "customWidth": width,
-        "conditionalVisibility": {
-            "parameterName": "selectedTab",
-            "comparison": "isEqualTo",
-            "value": "analytics"
-        },
-        "content": {
-            "version": "KqlItem/1.0",
-            "title": title,
-            "query": query,
-            "size": 0,
-            "queryType": 1,
-            "resourceType": "microsoft.resourcegraph/resources",
-            "visualization": "table"
-        }
-    }
-
-resource_query_items = [
-    resource_query(
-        "Azure Resource Inventory",
-        "Azure Resource Inventory",
-        f"""
-Resources
-| where subscriptionId == '{SUBSCRIPTION}'
-| where resourceGroup =~ '{RESOURCE_GROUP}'
-| project name, type, location, kind
-| order by type asc
-""".strip()
-    ),
-    resource_query(
-        "Monitoring Rules Inventory",
-        "Monitoring Rules and Health Checks",
-        f"""
-Resources
-| where subscriptionId == '{SUBSCRIPTION}'
-| where resourceGroup =~ '{RESOURCE_GROUP}'
-| where type in~ (
-    'microsoft.insights/scheduledqueryrules',
-    'microsoft.insights/metricalerts',
-    'microsoft.insights/actiongroups',
-    'microsoft.insights/webtests'
-)
-| extend Enabled = tostring(properties.enabled)
-| project name, type, location, Enabled
-| order by type asc
-""".strip()
-    )
-]
-
-existing_names = {
-    item.get("name") for item in workbook["items"]
-}
-
-for item in resource_query_items:
-    if item["name"] not in existing_names:
-        workbook["items"].append(item)
-
-workbook["$schema"] = (
-    "https://github.com/Microsoft/Application-Insights-Workbooks/"
-    "blob/master/schema/workbook.json"
-)
-
-# --------------------------------------------------
-# CREATE AZURE RESOURCE PAYLOAD
-# --------------------------------------------------
-
-resource_group_id = (
-    f"/subscriptions/{SUBSCRIPTION}/resourceGroups/{RESOURCE_GROUP}"
-)
-
-payload = {
-    "location": "centralindia",
-    "kind": "shared",
-    "properties": {
-        "displayName": "Azure Cloud Operations & Observability Platform",
-        "description": (
-            "Portfolio analytics, application monitoring, "
-            "availability, performance and operational governance."
-        ),
-        "category": "workbook",
-        "version": "Notebook/1.0",
-        "sourceId": resource_group_id,
-        "serializedData": json.dumps(workbook, separators=(",", ":"))
-    }
-}
-
-# Save the local source of truth.
-with open(workbook_path, "w", encoding="utf-8") as f:
-    json.dump(workbook, f, indent=2, ensure_ascii=False)
-
-with open("/tmp/p2-workbook-payload.json", "w", encoding="utf-8") as f:
-    json.dump(payload, f)
-
-print("\nWorkbook prepared.")
-print("Dashboard components:", len(workbook["items"]))
-print("Analytics snapshot:", timestamp)
-
-# --------------------------------------------------
-# DEPLOY EXISTING AZURE WORKBOOK
-# --------------------------------------------------
-
-print("\nDeploying Azure Workbook...")
-
-subprocess.run([
-    "az", "rest",
-    "--method", "put",
-    "--url", WORKBOOK_URL,
-    "--body", "@/tmp/p2-workbook-payload.json",
-    "--output", "none"
-], check=True)
-
-print("Workbook deployment completed.")
-
-# --------------------------------------------------
-# VERIFY DEPLOYMENT
-# --------------------------------------------------
-
-WORKBOOK_GET_URL = WORKBOOK_URL.replace(
-    "?api-version=2023-06-01",
-    "?api-version=2021-08-01&canFetchContent=true"
-)
-
-result = subprocess.check_output([
-    "az", "rest",
-    "--method", "get",
-    "--url", WORKBOOK_GET_URL,
-    "--output", "json"
-], text=True)
-
-deployed = json.loads(result)
-properties = deployed.get("properties", {})
-
-serialized = properties.get("serializedData")
-
-if not serialized:
-    raise RuntimeError("Workbook verification failed: serializedData is empty.")
-
-deployed_workbook = json.loads(serialized)
-
-print("\n========== DEPLOYMENT VERIFICATION ==========")
-print("Workbook:", properties.get("displayName"))
-print("Category:", properties.get("category"))
-print("Serialized data:", "Present")
-print("Dashboard components:", len(deployed_workbook.get("items", [])))
-print("Snapshot time:", timestamp)
-
-print("\n========== GIT STATUS ==========")
-
-subprocess.run(["git", "status", "--short"])
-
-print("\nPROJECT 2 WORKBOOK DEPLOYMENT COMPLETED.")
+if __name__ == "__main__":
+    main()

@@ -1,37 +1,37 @@
-let summary = requests
-| where timestamp >= ago(4d)
-| summarize
-    TotalRequests = count(),
-    FailedRequests = countif(success == false),
-    ServerErrors = countif(toint(resultCode) between (500 .. 599));
 union
 (
-    summary
-    | project Title = "Total Requests",
-              Metric = todouble(TotalRequests),
-              SubTitle = "Last 4 days"
+    requests
+    | where timestamp >= ago(4d)
+    | summarize Value=count()
+    | project Title="Total Requests", Metric=todouble(Value), SubTitle="Last 4 days"
 ),
 (
-    summary
-    | project Title = "Failed Requests",
-              Metric = todouble(FailedRequests),
-              SubTitle = "All failed requests"
+    requests
+    | where timestamp >= ago(4d)
+    | summarize Value=countif(success == false)
+    | project Title="Failed Requests", Metric=todouble(Value), SubTitle="Application Insights success = false"
 ),
 (
-    summary
-    | project Title = "Failure Rate",
-              Metric = iff(TotalRequests == 0, 0.0, round(100.0 * todouble(FailedRequests) / todouble(TotalRequests), 2)),
-              SubTitle = "Percent of requests"
+    requests
+    | where timestamp >= ago(4d)
+    | summarize Total=count(), Failed=countif(success == false)
+    | project Title="Failure Rate", Metric=iff(Total == 0, 0.0, round(100.0 * todouble(Failed) / todouble(Total), 2)), SubTitle="Percent"
 ),
 (
-    summary
-    | project Title = "HTTP 5xx Errors",
-              Metric = todouble(ServerErrors),
-              SubTitle = "Server errors"
+    requests
+    | where timestamp >= ago(4d)
+    | summarize Value=countif(toint(resultCode) >= 500 and toint(resultCode) <= 599)
+    | project Title="HTTP 5xx Errors", Metric=todouble(Value), SubTitle="HTTP 500-599"
 ),
 (
-    summary
-    | project Title = "HTTP 5xx Rate",
-              Metric = iff(TotalRequests == 0, 0.0, round(100.0 * todouble(ServerErrors) / todouble(TotalRequests), 2)),
-              SubTitle = "Percent of requests"
+    requests
+    | where timestamp >= ago(4d)
+    | summarize Total=count(), Errors=countif(toint(resultCode) >= 500 and toint(resultCode) <= 599)
+    | project Title="HTTP 5xx Rate", Metric=iff(Total == 0, 0.0, round(100.0 * todouble(Errors) / todouble(Total), 2)), SubTitle="Percent"
+),
+(
+    availabilityResults
+    | where timestamp >= ago(4d)
+    | summarize Total=count(), Passed=countif(success == true), Failed=countif(success == false), Unknown=countif(isnull(success))
+    | project Title="Availability", Metric=iff(Passed + Failed == 0, 0.0, round(100.0 * todouble(Passed) / todouble(Passed + Failed), 2)), SubTitle=strcat(Passed, " passed / ", Failed, " failed / ", Unknown, " unknown")
 )

@@ -1,0 +1,9 @@
+availabilityResults
+| where timestamp >= ago(4d)
+| project Timestamp=timestamp,
+          Test=name,
+          Location=location,
+          Success=success,
+          Message=message
+| order by Timestamp desc
+| take 30

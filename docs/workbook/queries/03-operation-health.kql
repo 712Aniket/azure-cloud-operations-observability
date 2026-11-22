@@ -1,0 +1,7 @@
+requests
+| where timestamp >= ago(4d)
+| summarize Requests = count(), FailedRequests = countif(success == false), Http5xx = countif(toint(resultCode) between (500 .. 599)) by Operation = name
+| extend FailureRatePct = iff(Requests == 0, 0.0, round(100.0 * todouble(FailedRequests) / todouble(Requests), 2))
+| project Operation, Requests, FailedRequests, Http5xx, FailureRatePct
+| order by Requests desc
+| take 8

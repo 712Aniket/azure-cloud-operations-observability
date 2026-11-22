@@ -1,0 +1,6 @@
+exceptions
+| where timestamp >= ago(4d)
+| extend Operation = iff(isempty(operation_Name), '(Unknown operation)', operation_Name)
+| summarize ExceptionCount = count() by Operation
+| top 10 by ExceptionCount desc
+| order by ExceptionCount desc

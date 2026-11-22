@@ -1,12 +1,6 @@
 requests
 | where timestamp >= ago(4d)
 | where success == false or toint(resultCode) between (500 .. 599)
-| project
-    Timestamp = timestamp,
-    Operation = name,
-    ResultCode = resultCode,
-    Success = success,
-    Url = url,
-    OperationId = operation_Id
+| project Timestamp = timestamp, Operation = name, ResultCode = resultCode, Success = success, Url = url, OperationId = operation_Id
 | order by Timestamp desc
 | take 10

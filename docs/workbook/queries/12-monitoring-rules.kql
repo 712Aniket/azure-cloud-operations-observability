@@ -1,0 +1,18 @@
+Resources
+| where resourceGroup =~ 'rg-portfolio'
+| where type in~ (
+    'microsoft.insights/metricalerts',
+    'microsoft.insights/scheduledqueryrules',
+    'microsoft.insights/webtests',
+    'microsoft.insights/actiongroups'
+)
+| extend Enabled=tostring(properties.enabled),
+         Severity=tostring(properties.severity),
+         EvaluationFrequency=tostring(properties.evaluationFrequency),
+         WindowSize=tostring(properties.windowSize),
+         MetricName=tostring(properties.criteria.allOf[0].metricName),
+         Threshold=tostring(properties.criteria.allOf[0].threshold),
+         ActionGroupCount=tostring(coalesce(array_length(properties.actions), array_length(properties.actions.actionGroups)))
+| project Name=name, RuleType=type, Enabled, Severity, EvaluationFrequency,
+          WindowSize, MetricName, Threshold, ActionGroupCount
+| order by RuleType asc, Name asc

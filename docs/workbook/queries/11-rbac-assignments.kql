@@ -1,0 +1,9 @@
+AuthorizationResources
+| where type =~ 'microsoft.authorization/roleassignments'
+| extend Scope=tostring(properties.scope),
+         PrincipalId=tostring(properties.principalId),
+         PrincipalType=tostring(properties.principalType),
+         RoleDefinitionId=tostring(properties.roleDefinitionId)
+| where Scope contains '/resourceGroups/rg-portfolio'
+| project Scope, PrincipalId, PrincipalType, RoleDefinitionId
+| order by Scope asc

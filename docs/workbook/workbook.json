@@ -4,263 +4,798 @@
     {
       "type": 1,
       "content": {
-        "json": "# Azure Cloud Operations & Observability Platform\n\n**Project 2 — Cloud Operations and Observability**\n\nUse the tabs to switch between operational health and diagnostics, portfolio analytics and governance.\n\n**Monitoring window:** Last 4 days (96 hours).\n\n_Note: Response-time KPIs are temporarily excluded from the KQL panels while Application Insights duration telemetry is investigated. They are not being reported as zero._",
-        "style": "info"
+        "json": "# Portfolio Operations & Observability\n\n**Project 2 | Azure Cloud Operations & Observability Platform**\n\nA live operational view of API health, portfolio usage, cost and Azure governance. Operations telemetry uses a rolling 4-day window. Portfolio and cost panels query their source systems when refreshed."
       },
       "customWidth": "100",
-      "name": "Project 2 Overview"
+      "name": "Project 2 Overview",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "4px 8px"
+      }
     },
     {
-      "type": 11,
+      "type": 1,
       "content": {
-        "version": "LinkItem/1.0",
-        "style": "tabs",
-        "tabStyle": "bigger",
-        "links": [
-          {
-            "id": "51592b6f-ff7a-40aa-be0e-7dbe2ac15a99",
-            "cellValue": "selectedTab",
-            "linkTarget": "parameter",
-            "linkLabel": "Operations Overview",
-            "subTarget": "operations",
-            "style": "link"
-          },
-          {
-            "id": "2b270b8e-ca81-4d26-ba5d-617cb11cd118",
-            "cellValue": "selectedTab",
-            "linkTarget": "parameter",
-            "linkLabel": "Diagnostics & Portfolio Analytics",
-            "subTarget": "analytics",
-            "style": "link"
-          }
-        ]
+        "json": "## 01  Application Operations & Monitoring\n\nApplication health \u00b7 request traffic \u00b7 failures \u00b7 availability \u00b7 exceptions"
       },
-      "name": "Operations and Analytics Tabs"
+      "customWidth": "100",
+      "name": "Operations and Monitoring Section",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "4px 8px"
+      }
     },
     {
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "let summary = requests\n| where timestamp >= ago(4d)\n| summarize\n    TotalRequests = count(),\n    FailedRequests = countif(success == false),\n    ServerErrors = countif(toint(resultCode) between (500 .. 599));\nunion\n(\n    summary\n    | project Title = \"Total Requests\",\n              Metric = todouble(TotalRequests),\n              SubTitle = \"Last 4 days\"\n),\n(\n    summary\n    | project Title = \"Failed Requests\",\n              Metric = todouble(FailedRequests),\n              SubTitle = \"All failed requests\"\n),\n(\n    summary\n    | project Title = \"Failure Rate\",\n              Metric = iff(TotalRequests == 0, 0.0, round(100.0 * todouble(FailedRequests) / todouble(TotalRequests), 2)),\n              SubTitle = \"Percent of requests\"\n),\n(\n    summary\n    | project Title = \"HTTP 5xx Errors\",\n              Metric = todouble(ServerErrors),\n              SubTitle = \"Server errors\"\n),\n(\n    summary\n    | project Title = \"HTTP 5xx Rate\",\n              Metric = iff(TotalRequests == 0, 0.0, round(100.0 * todouble(ServerErrors) / todouble(TotalRequests), 2)),\n              SubTitle = \"Percent of requests\"\n)",
+        "query": "union\n(\n    requests\n    | where timestamp >= ago(4d)\n    | summarize Value=count()\n    | project Title=\"Total Requests\", Metric=todouble(Value), SubTitle=\"Last 4 days\"\n),\n(\n    requests\n    | where timestamp >= ago(4d)\n    | summarize Value=countif(success == false)\n    | project Title=\"Failed Requests\", Metric=todouble(Value), SubTitle=\"Application Insights success = false\"\n),\n(\n    requests\n    | where timestamp >= ago(4d)\n    | summarize Total=count(), Failed=countif(success == false)\n    | project Title=\"Failure Rate\", Metric=iff(Total == 0, 0.0, round(100.0 * todouble(Failed) / todouble(Total), 2)), SubTitle=\"Percent\"\n),\n(\n    requests\n    | where timestamp >= ago(4d)\n    | summarize Value=countif(toint(resultCode) >= 500 and toint(resultCode) <= 599)\n    | project Title=\"HTTP 5xx Errors\", Metric=todouble(Value), SubTitle=\"HTTP 500-599\"\n),\n(\n    requests\n    | where timestamp >= ago(4d)\n    | summarize Total=count(), Errors=countif(toint(resultCode) >= 500 and toint(resultCode) <= 599)\n    | project Title=\"HTTP 5xx Rate\", Metric=iff(Total == 0, 0.0, round(100.0 * todouble(Errors) / todouble(Total), 2)), SubTitle=\"Percent\"\n),\n(\n    availabilityResults\n    | where timestamp >= ago(4d)\n    | summarize Total=count(), Passed=countif(success == true), Failed=countif(success == false), Unknown=countif(isnull(success))\n    | project Title=\"Availability\", Metric=iff(Passed + Failed == 0, 0.0, round(100.0 * todouble(Passed) / todouble(Passed + Failed), 2)), SubTitle=strcat(Passed, \" passed / \", Failed, \" failed / \", Unknown, \" unknown\")\n)",
         "size": 3,
-        "title": "API Health — Request & Failure KPIs (Last 4 Days)",
+        "title": "API Health & Availability \u2014 Last 4 Days",
+        "noDataMessage": "No data found for the selected period.",
         "timeContext": {
           "durationMs": 345600000
         },
+        "showRefreshButton": true,
         "queryType": 0,
         "resourceType": "microsoft.insights/components",
         "visualization": "tiles",
         "tileSettings": {
+          "size": "auto",
+          "showBorder": true,
           "titleContent": {
             "columnMatch": "Title",
             "formatter": 1,
             "formatOptions": {
-              "showIcon": false
+              "showIcon": true
             }
           },
           "subtitleContent": {
             "columnMatch": "SubTitle",
-            "formatOptions": {
-              "showIcon": false
-            }
+            "formatter": 1
           },
           "leftContent": {
             "columnMatch": "Metric",
             "formatter": 12,
             "formatOptions": {
-              "min": 0,
+              "palette": "blue",
               "showIcon": false
+            },
+            "numberFormat": {
+              "unit": 17,
+              "options": {
+                "style": "decimal",
+                "maximumFractionDigits": 2
+              }
             }
-          },
-          "showBorder": true
+          }
         }
       },
       "customWidth": "50",
-      "conditionalVisibility": {
-        "parameterName": "selectedTab",
-        "comparison": "isEqualTo",
-        "value": "operations"
-      },
-      "name": "API Health - KPI Summary"
-    },
-    {
-      "type": 3,
-      "content": {
-        "version": "KqlItem/1.0",
-        "query": "requests\n| where timestamp >= ago(4d)\n| summarize\n    Requests = count(),\n    FailedRequests = countif(success == false),\n    ServerErrors = countif(toint(resultCode) between (500 .. 599))\n    by bin(timestamp, 1h)\n| order by timestamp asc",
-        "size": 4,
-        "title": "Request Volume & Failures — Hourly Trend",
-        "timeContext": {
-          "durationMs": 345600000
-        },
-        "queryType": 0,
-        "resourceType": "microsoft.insights/components",
-        "visualization": "timechart"
-      },
-      "customWidth": "50",
-      "conditionalVisibility": {
-        "parameterName": "selectedTab",
-        "comparison": "isEqualTo",
-        "value": "operations"
-      },
-      "name": "Request Volume and Failure Trend"
-    },
-    {
-      "type": 3,
-      "content": {
-        "version": "KqlItem/1.0",
-        "query": "requests\n| where timestamp >= ago(4d)\n| summarize\n    Requests = count(),\n    FailedRequests = countif(success == false),\n    ServerErrors = countif(toint(resultCode) between (500 .. 599))\n    by Operation = name\n| extend FailureRatePct = iff(Requests == 0, 0.0, round(100.0 * todouble(FailedRequests) / todouble(Requests), 2))\n| project Operation, Requests, FailedRequests, ServerErrors, FailureRatePct\n| order by Requests desc\n| take 8",
-        "size": 1,
-        "title": "API Operation Health — Last 4 Days",
-        "timeContext": {
-          "durationMs": 345600000
-        },
-        "queryType": 0,
-        "resourceType": "microsoft.insights/components",
-        "visualization": "table"
-      },
-      "customWidth": "50",
-      "conditionalVisibility": {
-        "parameterName": "selectedTab",
-        "comparison": "isEqualTo",
-        "value": "operations"
-      },
-      "name": "API Operation Performance"
-    },
-    {
-      "type": 3,
-      "content": {
-        "version": "KqlItem/1.0",
-        "query": "requests\n| where timestamp >= ago(4d)\n| where success == false or toint(resultCode) between (500 .. 599)\n| project\n    Timestamp = timestamp,\n    Operation = name,\n    ResultCode = resultCode,\n    Success = success,\n    Url = url,\n    OperationId = operation_Id\n| order by Timestamp desc\n| take 10",
-        "size": 1,
-        "title": "Recent API Failures — Last 4 Days",
-        "timeContext": {
-          "durationMs": 345600000
-        },
-        "queryType": 0,
-        "resourceType": "microsoft.insights/components",
-        "visualization": "table"
-      },
-      "customWidth": "50",
-      "conditionalVisibility": {
-        "parameterName": "selectedTab",
-        "comparison": "isEqualTo",
-        "value": "operations"
-      },
-      "name": "Recent API Failures"
-    },
-    {
-      "type": 3,
-      "content": {
-        "version": "KqlItem/1.0",
-        "query": "availabilityResults\n| where timestamp >= ago(4d)\n| summarize\n    TotalTests = count(),\n    SuccessfulTests = countif(success == true),\n    FailedTests = countif(success == false),\n    AvailabilityPct = round(100.0 * countif(success == true) / count(), 2)\n    by name, location\n| order by name asc",
-        "size": 4,
-        "title": "Availability Test Results — Last 4 Days",
-        "timeContext": {
-          "durationMs": 345600000
-        },
-        "queryType": 0,
-        "resourceType": "microsoft.insights/components",
-        "visualization": "table"
-      },
-      "customWidth": "100",
-      "conditionalVisibility": {
-        "parameterName": "selectedTab",
-        "comparison": "isEqualTo",
-        "value": "operations"
-      },
-      "name": "API Availability"
-    },
-    {
-      "type": 3,
-      "content": {
-        "version": "KqlItem/1.0",
-        "query": "exceptions\n| where timestamp >= ago(4d)\n| summarize\n    ExceptionCount = count(),\n    FirstSeen = min(timestamp),\n    LastSeen = max(timestamp),\n    SampleMessage = take_any(iff(isempty(outerMessage), innermostMessage, outerMessage)),\n    SampleOperation = take_any(operation_Name)\n    by type\n| project\n    ExceptionType = type,\n    ExceptionCount,\n    FirstSeen,\n    LastSeen,\n    SampleOperation,\n    SampleMessage\n| order by ExceptionCount desc",
-        "size": 1,
-        "title": "Exception Details — Last 4 Days",
-        "timeContext": {
-          "durationMs": 345600000
-        },
-        "queryType": 0,
-        "resourceType": "microsoft.insights/components",
-        "visualization": "table"
-      },
-      "customWidth": "50",
-      "conditionalVisibility": {
-        "parameterName": "selectedTab",
-        "comparison": "isEqualTo",
-        "value": "analytics"
-      },
-      "name": "Exception Analysis"
-    },
-    {
-      "type": 3,
-      "content": {
-        "version": "KqlItem/1.0",
-        "query": "exceptions\n| where timestamp >= ago(4d)\n| summarize Exceptions = count() by bin(timestamp, 6h), type\n| order by timestamp asc",
-        "size": 1,
-        "title": "Exception Trend — Last 4 Days",
-        "timeContext": {
-          "durationMs": 345600000
-        },
-        "queryType": 0,
-        "resourceType": "microsoft.insights/components",
-        "visualization": "timechart"
-      },
-      "customWidth": "50",
-      "conditionalVisibility": {
-        "parameterName": "selectedTab",
-        "comparison": "isEqualTo",
-        "value": "analytics"
-      },
-      "name": "Exception Trend"
-    },
-    {
-      "type": 12,
-      "name": "Portfolio Analytics — Audience & Documents",
-      "customWidth": "50",
-      "conditionalVisibility": {
-        "parameterName": "selectedTab",
-        "comparison": "isEqualTo",
-        "value": "analytics"
-      },
-      "content": {
-        "version": "NotebookGroup/1.0",
-        "groupType": "editable",
-        "items": [
-          {
-            "type": 1,
-            "name": "Audience, Geography and Documents",
-            "content": {
-              "json": "## Portfolio Analytics\n\n**Data snapshot:** 2026-11-22 10:49 UTC\n\n| KPI | Value | KPI | Value |\n| --- | --- | --- | --- |\n| Total visitors | 1,129 | Countries represented | 13 |\n| Resume views | 30 | Resume downloads | 8 |\n| Certificate views | 17 | Certificate downloads | 3 |\n| Portfolio sessions | 6 | Active time | 1 min 4 sec |\n| Appreciations | 2 | Unique appreciators (visitor hashes) | 2 |\n| Appreciation ratio vs. total visitors | 0.18% | Likes without valid dates | 0 |\n\n### Visitor Geography\n\n| Country | Visitors | Country | Visitors |\n| --- | --- | --- | --- |\n| 🇮🇳 India | 860 | 🇺🇸 United States | 43 |\n| 🇬🇧 United Kingdom | 8 | 🇨🇿 Czechia | 6 |\n| 🇵🇱 Poland | 4 | 🇩🇪 Germany | 3 |\n| 🇸🇪 Sweden | 3 | 🇦🇺 Australia | 3 |\n| 🇸🇬 Singapore | 2 | 🇫🇷 France | 2 |\n| 🇳🇬 Nigeria | 1 | 🇨🇾 Cyprus | 1 |\n| 🇫🇮 Finland | 1 |  |  |\n\n### Resume Analytics\n\n| Document | Views | Downloads |\n|---|---:|---:|\n| Resume | 30 | 8 |\n\n### Certificate Analytics\n\n| Certificate | Views | Downloads |\n|---|---:|---:|\n| AI-900 | 1 | 0 |\n| AWS-CCP | 2 | 1 |\n| AZ-104 | 5 | 1 |\n| AZ-900 | 5 | 1 |\n| Google-Cloud-Digital-Leader | 2 | 0 |\n| ITIL-4 | 2 | 0 |",
-              "style": "plain"
-            }
-          }
-        ]
+      "name": "API Health - KPI Summary",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
       }
     },
     {
-      "type": 12,
-      "name": "Portfolio Analytics — Engagement & Cost",
-      "customWidth": "50",
-      "conditionalVisibility": {
-        "parameterName": "selectedTab",
-        "comparison": "isEqualTo",
-        "value": "analytics"
-      },
+      "type": 3,
       "content": {
-        "version": "NotebookGroup/1.0",
-        "groupType": "editable",
-        "items": [
-          {
-            "type": 1,
-            "name": "Engagement, Cost and Governance",
-            "content": {
-              "json": "### Portfolio Engagement\n\n| Section | Views | Active seconds |\n|---|---:|---:|\n| Certifications | 4 | 0 |\n| Contact | 5 | 1 |\n| Experience | 5 | 1 |\n| Profile | 8 | 15 |\n| Projects | 5 | 7 |\n| Skills | 5 | 3 |\n\n### Daily Portfolio Appreciations\n\n| Date | Like events | Unique appreciators |\n|---|---:|---:|\n| 2026-11-21 | 2 | 2 |\n\n> Appreciation ratio compares distinct like-event visitor hashes with the cumulative visitor counter. It is not a session-level conversion rate.\n\n### Azure Cost Visibility\n\n| Cost Metric | Value |\n|---|---:|\n| Month-to-date cost (rg-portfolio) | INR 72.36 |\n\n| Date | Daily cost | Date | Daily cost |\n| --- | --- | --- | --- |\n|---|---:|---:\n| 2026-11-07 | INR 17.09 |\n| 2026-11-08 | INR 0.04 |\n| 2026-11-09 | INR 21.77 |\n| 2026-11-10 | INR 0.07 |\n| 2026-11-11 | INR 0.05 |\n| 2026-11-12 | INR 0.04 |\n| 2026-11-13 | INR 0.01 |\n| 2026-11-14 | INR 0.00 |\n| 2026-11-15 | INR 0.06 |\n| 2026-11-16 | INR 0.09 |\n| 2026-11-17 | INR 0.07 |\n| 2026-11-18 | INR 0.03 |\n| 2026-11-19 | INR 9.80 |\n| 2026-11-20 | INR 11.18 |\n| 2026-11-21 | INR 11.28 |\n| 2026-11-22 | INR 0.80 |\n\n### Security and Governance\n\n- Cost data is retrieved from Azure Cost Management.\n- Review resource usage and monitoring retention regularly.\n- Budget configuration and alert thresholds: not yet configured.\n- CI/CD identity permissions and deployment approvals: require separate verification.\n\n> Portfolio and cost metrics are snapshots captured during workbook deployment. Run this deployment again to refresh them.",
-              "style": "plain"
+        "version": "KqlItem/1.0",
+        "query": "requests\n| where timestamp >= ago(4d)\n| summarize Requests = count(), FailedRequests = countif(success == false), Http5xx = countif(toint(resultCode) between (500 .. 599)) by Operation = name\n| extend FailureRatePct = iff(Requests == 0, 0.0, round(100.0 * todouble(FailedRequests) / todouble(Requests), 2))\n| project Operation, Requests, FailedRequests, Http5xx, FailureRatePct\n| order by Requests desc\n| take 8",
+        "size": 1,
+        "title": "API Operation Health \u2014 Top Operations",
+        "noDataMessage": "No data found for the selected period.",
+        "timeContext": {
+          "durationMs": 345600000
+        },
+        "showRefreshButton": true,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Requests",
+              "formatter": 8,
+              "formatOptions": {
+                "palette": "blue",
+                "min": 0
+              }
+            },
+            {
+              "columnMatch": "FailedRequests",
+              "formatter": 3,
+              "formatOptions": {
+                "palette": "red",
+                "min": 0
+              }
+            },
+            {
+              "columnMatch": "Http5xx",
+              "formatter": 3,
+              "formatOptions": {
+                "palette": "red",
+                "min": 0
+              }
+            },
+            {
+              "columnMatch": "FailureRatePct",
+              "formatter": 3,
+              "formatOptions": {
+                "palette": "redYellowGreen",
+                "min": 0,
+                "max": 100
+              }
+            }
+          ],
+          "rowLimit": 8
+        }
+      },
+      "customWidth": "50",
+      "name": "API Operation Performance",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests\n| where timestamp >= ago(4d)\n| where success == false or toint(resultCode) between (500 .. 599)\n| project Timestamp = timestamp, Operation = name, ResultCode = resultCode, Success = success, Url = url, OperationId = operation_Id\n| order by Timestamp desc\n| take 10",
+        "size": 1,
+        "title": "Recent API Failures \u2014 Last 4 Days",
+        "noDataMessage": "No data found for the selected period.",
+        "timeContext": {
+          "durationMs": 345600000
+        },
+        "showRefreshButton": true,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "ResultCode",
+              "formatter": 3,
+              "formatOptions": {
+                "palette": "red",
+                "min": 400,
+                "max": 599
+              }
+            },
+            {
+              "columnMatch": "Success",
+              "formatter": 5
+            }
+          ],
+          "rowLimit": 10,
+          "filter": true
+        }
+      },
+      "customWidth": "50",
+      "name": "Recent API Failures",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "availabilityResults\n| where timestamp >= ago(4d)\n| project Timestamp=timestamp,\n          Test=name,\n          Location=location,\n          Success=success,\n          Message=message\n| order by Timestamp desc\n| take 30",
+        "size": 1,
+        "title": "Availability Test Results \u2014 Passed / Failed / Unknown",
+        "noDataMessage": "No availability test records were returned in the last 4 days.",
+        "timeContext": {
+          "durationMs": 345600000
+        },
+        "showRefreshButton": true,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Success",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Timestamp",
+              "formatter": 6
+            }
+          ],
+          "rowLimit": 20,
+          "filter": true
+        }
+      },
+      "customWidth": "50",
+      "name": "API Availability",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests\n| where timestamp >= ago(4d)\n| extend StatusCode=iff(isempty(resultCode), 'Unknown', tostring(toint(resultCode)))\n| summarize Requests=count() by StatusCode\n| order by toint(StatusCode) asc",
+        "size": 2,
+        "title": "HTTP Status Code Distribution \u2014 Last 4 Days",
+        "noDataMessage": "No data found for the selected period.",
+        "timeContext": {
+          "durationMs": 345600000
+        },
+        "showRefreshButton": true,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "barchart",
+        "chartSettings": {
+          "xAxis": "StatusCode",
+          "yAxis": [
+            "Requests"
+          ],
+          "showLegend": false
+        }
+      },
+      "customWidth": "50",
+      "name": "HTTP Status Code Distribution",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests\n| where timestamp >= ago(4d)\n| summarize Requests = count(), FailedRequests = countif(success == false), Http5xx = countif(toint(resultCode) between (500 .. 599)) by bin(timestamp, 1h)\n| order by timestamp asc",
+        "size": 2,
+        "title": "Request Volume & Failures \u2014 Hourly",
+        "noDataMessage": "No data found for the selected period.",
+        "timeContext": {
+          "durationMs": 345600000
+        },
+        "showRefreshButton": true,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart",
+        "chartSettings": {
+          "xAxis": "timestamp",
+          "yAxis": [
+            "Requests",
+            "FailedRequests",
+            "Http5xx"
+          ],
+          "showLegend": true,
+          "seriesLabelSettings": [
+            {
+              "seriesName": "Requests",
+              "label": "Requests",
+              "color": "blue"
+            },
+            {
+              "seriesName": "FailedRequests",
+              "label": "Failed requests",
+              "color": "red"
+            },
+            {
+              "seriesName": "Http5xx",
+              "label": "HTTP 5xx",
+              "color": "orange"
+            }
+          ]
+        }
+      },
+      "customWidth": "50",
+      "name": "Request Volume and Failure Trend",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "exceptions\n| where timestamp >= ago(4d)\n| summarize ExceptionCount = count(), FirstSeen = min(timestamp), LastSeen = max(timestamp), SampleMessage = take_any(iff(isempty(outerMessage), innermostMessage, outerMessage)) by ExceptionType = type\n| order by ExceptionCount desc",
+        "size": 1,
+        "title": "Exception Details \u2014 Last 4 Days",
+        "noDataMessage": "No data found for the selected period.",
+        "timeContext": {
+          "durationMs": 345600000
+        },
+        "showRefreshButton": true,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "ExceptionCount",
+              "formatter": 8,
+              "formatOptions": {
+                "palette": "purple",
+                "min": 0
+              }
+            }
+          ],
+          "rowLimit": 8
+        }
+      },
+      "customWidth": "50",
+      "name": "Exception Analysis",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "exceptions\n| where timestamp >= ago(4d)\n| extend Operation = iff(isempty(operation_Name), '(Unknown operation)', operation_Name)\n| summarize ExceptionCount = count() by Operation\n| top 10 by ExceptionCount desc\n| order by ExceptionCount desc\n",
+        "size": 1,
+        "title": "Exceptions by API Operation \u2014 Last 4 Days",
+        "noDataMessage": "No data found for the selected period.",
+        "timeContext": {
+          "durationMs": 345600000
+        },
+        "showRefreshButton": true,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "barchart",
+        "chartSettings": {
+          "xAxis": "Operation",
+          "yAxis": [
+            "ExceptionCount"
+          ],
+          "showLegend": false
+        }
+      },
+      "customWidth": "50",
+      "name": "Exception Distribution",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## 02  Portfolio Analytics\n\nVisitor reach \u00b7 resume and certificate interactions \u00b7 engagement \u00b7 Azure spend"
+      },
+      "customWidth": "100",
+      "name": "Portfolio Analytics Section",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "4px 8px"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "{\"version\":\"CustomEndpoint/1.0\",\"data\":null,\"headers\":[],\"method\":\"GET\",\"url\":\"https://aniket-portfolio-api.azurewebsites.net/api/portfolio-analytics\",\"contentType\":\"application/json\",\"urlParams\":[],\"transformers\":[{\"type\":\"jsonpath\",\"settings\":{\"tablePath\":\"$.countries[*]\",\"columns\":[{\"path\":\"$.country\",\"columnid\":\"Country\",\"columnType\":\"string\"},{\"path\":\"$.visitors\",\"columnid\":\"Visitors\",\"columnType\":\"number\"},{\"path\":\"$.sharePct\",\"columnid\":\"SharePct\",\"columnType\":\"number\"}]}}],\"ignoreStandardHeaders\":true}",
+        "size": 1,
+        "title": "Visitor Geography \u2014 Top Countries",
+        "noDataMessage": "No portfolio analytics data returned.",
+        "showRefreshButton": true,
+        "queryType": 10,
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Visitors",
+              "formatter": 8,
+              "formatOptions": {
+                "palette": "blue",
+                "min": 0
+              }
+            },
+            {
+              "columnMatch": "SharePct",
+              "formatter": 3,
+              "formatOptions": {
+                "palette": "blue",
+                "min": 0,
+                "max": 100
+              }
+            }
+          ],
+          "rowLimit": 10
+        }
+      },
+      "customWidth": "50",
+      "name": "Visitor Geography",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "{\"version\":\"CustomEndpoint/1.0\",\"data\":null,\"headers\":[],\"method\":\"GET\",\"url\":\"https://aniket-portfolio-api.azurewebsites.net/api/portfolio-analytics\",\"contentType\":\"application/json\",\"urlParams\":[],\"transformers\":[{\"type\":\"jsonpath\",\"settings\":{\"tablePath\":\"$.kpis[*]\",\"columns\":[{\"path\":\"$.title\",\"columnid\":\"Title\",\"columnType\":\"string\"},{\"path\":\"$.value\",\"columnid\":\"Metric\",\"columnType\":\"number\"},{\"path\":\"$.subtitle\",\"columnid\":\"SubTitle\",\"columnType\":\"string\"}]}}],\"ignoreStandardHeaders\":true}",
+        "size": 3,
+        "title": "Portfolio Snapshot \u2014 Live from Cosmos DB",
+        "noDataMessage": "No portfolio analytics data returned.",
+        "showRefreshButton": true,
+        "queryType": 10,
+        "visualization": "tiles",
+        "tileSettings": {
+          "size": "auto",
+          "showBorder": true,
+          "titleContent": {
+            "columnMatch": "Title",
+            "formatter": 1,
+            "formatOptions": {
+              "showIcon": true
+            }
+          },
+          "subtitleContent": {
+            "columnMatch": "SubTitle",
+            "formatter": 1
+          },
+          "leftContent": {
+            "columnMatch": "Metric",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "blue"
+            },
+            "numberFormat": {
+              "unit": 17,
+              "options": {
+                "style": "decimal",
+                "maximumFractionDigits": 1
+              }
             }
           }
-        ]
+        }
+      },
+      "customWidth": "50",
+      "name": "Portfolio KPI Summary",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "{\"version\":\"CustomEndpoint/1.0\",\"data\":null,\"headers\":[],\"method\":\"GET\",\"url\":\"https://aniket-portfolio-api.azurewebsites.net/api/portfolio-analytics\",\"contentType\":\"application/json\",\"urlParams\":[],\"transformers\":[{\"type\":\"jsonpath\",\"settings\":{\"tablePath\":\"$.resumeKpis[*]\",\"columns\":[{\"path\":\"$.title\",\"columnid\":\"Title\",\"columnType\":\"string\"},{\"path\":\"$.value\",\"columnid\":\"Metric\",\"columnType\":\"number\"},{\"path\":\"$.subtitle\",\"columnid\":\"SubTitle\",\"columnType\":\"string\"}]}}],\"ignoreStandardHeaders\":true}",
+        "size": 4,
+        "title": "Resume Performance",
+        "noDataMessage": "No portfolio analytics data returned.",
+        "showRefreshButton": true,
+        "queryType": 10,
+        "visualization": "tiles",
+        "tileSettings": {
+          "size": "auto",
+          "showBorder": true,
+          "titleContent": {
+            "columnMatch": "Title",
+            "formatter": 1
+          },
+          "subtitleContent": {
+            "columnMatch": "SubTitle",
+            "formatter": 1
+          },
+          "leftContent": {
+            "columnMatch": "Metric",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "blue"
+            }
+          }
+        }
+      },
+      "customWidth": "50",
+      "name": "Resume Analytics",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "{\"version\":\"CustomEndpoint/1.0\",\"data\":null,\"headers\":[],\"method\":\"GET\",\"url\":\"https://aniket-portfolio-api.azurewebsites.net/api/portfolio-analytics\",\"contentType\":\"application/json\",\"urlParams\":[],\"transformers\":[{\"type\":\"jsonpath\",\"settings\":{\"tablePath\":\"$\",\"columns\":[{\"path\":\"$.portfolioSessions\",\"columnid\":\"Sessions\",\"columnType\":\"number\"},{\"path\":\"$.activeSeconds\",\"columnid\":\"ActiveSeconds\",\"columnType\":\"number\"}]}}],\"ignoreStandardHeaders\":true}",
+        "size": 4,
+        "title": "Portfolio Sessions & Active Time",
+        "noDataMessage": "No portfolio analytics data returned.",
+        "showRefreshButton": true,
+        "queryType": 10,
+        "visualization": "table",
+        "gridSettings": {
+          "rowLimit": 1
+        }
+      },
+      "customWidth": "50",
+      "name": "Portfolio Sessions & Active Time",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "{\"version\":\"CustomEndpoint/1.0\",\"data\":null,\"headers\":[],\"method\":\"GET\",\"url\":\"https://aniket-portfolio-api.azurewebsites.net/api/portfolio-analytics\",\"contentType\":\"application/json\",\"urlParams\":[],\"transformers\":[{\"type\":\"jsonpath\",\"settings\":{\"tablePath\":\"$.certificates[*]\",\"columns\":[{\"path\":\"$.certificate\",\"columnid\":\"Certificate\",\"columnType\":\"string\"},{\"path\":\"$.views\",\"columnid\":\"Views\",\"columnType\":\"number\"},{\"path\":\"$.downloads\",\"columnid\":\"Downloads\",\"columnType\":\"number\"}]}}],\"ignoreStandardHeaders\":true}",
+        "size": 2,
+        "title": "Certificate Views vs Downloads",
+        "noDataMessage": "No portfolio analytics data returned.",
+        "showRefreshButton": true,
+        "queryType": 10,
+        "visualization": "barchart",
+        "chartSettings": {
+          "xAxis": "Certificate",
+          "yAxis": [
+            "Views",
+            "Downloads"
+          ],
+          "showLegend": true,
+          "showMetrics": false
+        }
+      },
+      "customWidth": "50",
+      "name": "Certificate Analytics",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "{\"version\":\"CustomEndpoint/1.0\",\"data\":null,\"headers\":[],\"method\":\"GET\",\"url\":\"https://aniket-portfolio-api.azurewebsites.net/api/portfolio-analytics\",\"contentType\":\"application/json\",\"urlParams\":[],\"transformers\":[{\"type\":\"jsonpath\",\"settings\":{\"tablePath\":\"$.countries[*]\",\"columns\":[{\"path\":\"$.country\",\"columnid\":\"Country\",\"columnType\":\"string\"},{\"path\":\"$.visitors\",\"columnid\":\"Visitors\",\"columnType\":\"number\"}]}}],\"ignoreStandardHeaders\":true}",
+        "size": 2,
+        "title": "Visitors by Country \u2014 Top 10",
+        "noDataMessage": "No portfolio analytics data returned.",
+        "showRefreshButton": true,
+        "queryType": 10,
+        "visualization": "barchart",
+        "chartSettings": {
+          "xAxis": "Country",
+          "yAxis": [
+            "Visitors"
+          ],
+          "showLegend": false
+        }
+      },
+      "customWidth": "50",
+      "name": "Visitor Distribution by Country",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "{\"version\":\"CustomEndpoint/1.0\",\"data\":null,\"headers\":[],\"method\":\"GET\",\"url\":\"https://aniket-portfolio-api.azurewebsites.net/api/portfolio-analytics\",\"contentType\":\"application/json\",\"urlParams\":[],\"transformers\":[{\"type\":\"jsonpath\",\"settings\":{\"tablePath\":\"$.engagement[*]\",\"columns\":[{\"path\":\"$.section\",\"columnid\":\"Section\",\"columnType\":\"string\"},{\"path\":\"$.views\",\"columnid\":\"Views\",\"columnType\":\"number\"},{\"path\":\"$.activeSeconds\",\"columnid\":\"ActiveSeconds\",\"columnType\":\"number\"}]}}],\"ignoreStandardHeaders\":true}",
+        "size": 1,
+        "title": "Portfolio Engagement by Section",
+        "noDataMessage": "No portfolio analytics data returned.",
+        "showRefreshButton": true,
+        "queryType": 10,
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Views",
+              "formatter": 8,
+              "formatOptions": {
+                "palette": "blue",
+                "min": 0
+              }
+            },
+            {
+              "columnMatch": "ActiveSeconds",
+              "formatter": 8,
+              "formatOptions": {
+                "palette": "purple",
+                "min": 0
+              }
+            }
+          ],
+          "rowLimit": 10
+        }
+      },
+      "customWidth": "50",
+      "name": "Portfolio Engagement",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "{\"version\":\"CustomEndpoint/1.0\",\"data\":null,\"headers\":[],\"method\":\"GET\",\"url\":\"https://aniket-portfolio-api.azurewebsites.net/api/portfolio-analytics\",\"contentType\":\"application/json\",\"urlParams\":[],\"transformers\":[{\"type\":\"jsonpath\",\"settings\":{\"tablePath\":\"$.dailyAppreciations[*]\",\"columns\":[{\"path\":\"$.date\",\"columnid\":\"Date\",\"columnType\":\"datetime\"},{\"path\":\"$.likeEvents\",\"columnid\":\"Likes\",\"columnType\":\"number\"},{\"path\":\"$.uniqueAppreciators\",\"columnid\":\"UniqueAppreciators\",\"columnType\":\"number\"}]}}],\"ignoreStandardHeaders\":true}",
+        "size": 2,
+        "title": "Daily Appreciations \u2014 Last 30 Days",
+        "noDataMessage": "No portfolio analytics data returned.",
+        "showRefreshButton": true,
+        "queryType": 10,
+        "visualization": "timechart",
+        "chartSettings": {
+          "xAxis": "Date",
+          "yAxis": [
+            "Likes",
+            "UniqueAppreciators"
+          ],
+          "showLegend": true
+        }
+      },
+      "customWidth": "50",
+      "name": "Daily Portfolio Appreciations",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "{\"version\":\"ARMEndpoint/1.0\",\"data\":\"{\\\"type\\\":\\\"ActualCost\\\",\\\"timeframe\\\":\\\"MonthToDate\\\",\\\"dataset\\\":{\\\"granularity\\\":\\\"Daily\\\",\\\"aggregation\\\":{\\\"totalCost\\\":{\\\"name\\\":\\\"PreTaxCost\\\",\\\"function\\\":\\\"Sum\\\"}},\\\"grouping\\\":[{\\\"type\\\":\\\"Dimension\\\",\\\"name\\\":\\\"ResourceId\\\"}]}}\",\"headers\":[{\"key\":\"Content-Type\",\"value\":\"application/json\"}],\"method\":\"POST\",\"path\":\"/subscriptions/8bb846b6-1057-42bb-a02a-7a64e6a34178/resourceGroups/rg-portfolio/providers/Microsoft.CostManagement/query?api-version=2025-03-01\",\"urlParams\":[],\"batchDisabled\":true,\"transformers\":[{\"type\":\"jsonpath\",\"settings\":{\"tablePath\":\"$.properties.rows[*]\",\"columns\":[{\"path\":\"$[0]\",\"columnid\":\"Cost\",\"columnType\":\"number\"},{\"path\":\"$[1]\",\"columnid\":\"UsageDate\",\"columnType\":\"datetime\",\"substringRegexMatch\":\"([0-9]{4})([0-9]{2})([0-9]{2})\",\"substringReplace\":\"$1-$2-$3\"},{\"path\":\"$[2]\",\"columnid\":\"Currency\",\"columnType\":\"string\"},{\"path\":\"$[3]\",\"columnid\":\"ResourceId\",\"columnType\":\"string\"}]}}]}",
+        "size": 2,
+        "title": "Daily Azure Cost Trend \u2014 By Resource",
+        "noDataMessage": "Cost Management returned no daily cost rows for rg-portfolio.",
+        "queryType": 12,
+        "visualization": "timechart",
+        "chartSettings": {
+          "xAxis": "UsageDate",
+          "yAxis": [
+            "Cost"
+          ],
+          "group": "ResourceId",
+          "showLegend": true
+        }
+      },
+      "customWidth": "50",
+      "name": "Azure Daily Cost Trend",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "{\"version\":\"Merge/1.0\",\"merges\":[{\"id\":\"9ba69297-9331-5dbc-bbcf-5cedab7963ef\",\"mergeType\":\"table\",\"leftTable\":\"Azure Daily Cost Trend\"}],\"projectRename\":[{\"originalName\":\"[Azure Daily Cost Trend].Cost\",\"mergedName\":\"Cost\",\"fromId\":\"9ba69297-9331-5dbc-bbcf-5cedab7963ef\"},{\"originalName\":\"[Azure Daily Cost Trend].UsageDate\",\"mergedName\":\"UsageDate\",\"fromId\":\"9ba69297-9331-5dbc-bbcf-5cedab7963ef\"},{\"originalName\":\"[Azure Daily Cost Trend].Currency\",\"mergedName\":\"Currency\",\"fromId\":\"9ba69297-9331-5dbc-bbcf-5cedab7963ef\"},{\"originalName\":\"[Azure Daily Cost Trend].ResourceId\",\"mergedName\":\"ResourceId\",\"fromId\":\"9ba69297-9331-5dbc-bbcf-5cedab7963ef\"}]}",
+        "size": 2,
+        "title": "Daily Cost Detail by Azure Resource",
+        "noDataMessage": "The daily cost query returned no resource-level rows.",
+        "queryType": 7,
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Cost",
+              "formatter": 8,
+              "formatOptions": {
+                "palette": "blue",
+                "min": 0
+              },
+              "numberFormat": {
+                "unit": 0,
+                "options": {
+                  "style": "currency",
+                  "currency": "INR",
+                  "maximumFractionDigits": 2
+                }
+              }
+            },
+            {
+              "columnMatch": "UsageDate",
+              "formatter": 6
+            },
+            {
+              "columnMatch": "ResourceId",
+              "formatter": 1
+            }
+          ],
+          "filter": true
+        }
+      },
+      "customWidth": "50",
+      "name": "Azure Cost by Resource",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "Resources\n| where resourceGroup =~ 'rg-portfolio'\n| where type in~ (\n    'microsoft.insights/components',\n    'microsoft.web/sites',\n    'microsoft.documentdb/databaseaccounts',\n    'microsoft.storage/storageaccounts',\n    'microsoft.insights/scheduledqueryrules',\n    'microsoft.insights/metricalerts',\n    'microsoft.insights/webtests',\n    'microsoft.consumption/budgets'\n)\n| extend HttpsOnly=tostring(properties.httpsOnly),\n         MinimumTlsVersion=tostring(properties.siteConfig.minTlsVersion),\n         PublicNetworkAccess=tostring(properties.publicNetworkAccess),\n         IdentityType=tostring(identity.type),\n         RetentionDays=tostring(properties.retentionInDays),\n         Enabled=tostring(properties.enabled),\n         BudgetAmount=tostring(properties.amount),\n         BudgetTimeGrain=tostring(properties.timeGrain),\n         BudgetStart=tostring(properties.timePeriod.startDate),\n         BudgetEnd=tostring(properties.timePeriod.endDate)\n| project Name=name, ResourceType=type, Location=location, HttpsOnly,\n          MinimumTlsVersion, PublicNetworkAccess, IdentityType, RetentionDays,\n          Enabled, BudgetAmount, BudgetTimeGrain, BudgetStart, BudgetEnd\n| order by ResourceType asc, Name asc",
+        "size": 1,
+        "title": "Security, Governance, Retention & Budget Configuration",
+        "noDataMessage": "No matching security, retention, budget or monitoring resources were returned.",
+        "showRefreshButton": true,
+        "queryType": 1,
+        "resourceType": "microsoft.resourcegraph/resources",
+        "visualization": "table",
+        "gridSettings": {
+          "rowLimit": 50,
+          "filter": true
+        }
+      },
+      "customWidth": "50",
+      "name": "Security and Governance",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "AuthorizationResources\n| where type =~ 'microsoft.authorization/roleassignments'\n| extend Scope=tostring(properties.scope),\n         PrincipalId=tostring(properties.principalId),\n         PrincipalType=tostring(properties.principalType),\n         RoleDefinitionId=tostring(properties.roleDefinitionId)\n| where Scope contains '/resourceGroups/rg-portfolio'\n| project Scope, PrincipalId, PrincipalType, RoleDefinitionId\n| order by Scope asc",
+        "size": 1,
+        "title": "RBAC Role Assignments \u2014 rg-portfolio",
+        "noDataMessage": "No matching security, retention, budget or monitoring resources were returned.",
+        "showRefreshButton": true,
+        "queryType": 1,
+        "resourceType": "microsoft.resourcegraph/resources",
+        "visualization": "table",
+        "gridSettings": {
+          "rowLimit": 100,
+          "filter": true
+        }
+      },
+      "customWidth": "50",
+      "name": "RBAC Role Assignments",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## 03  Azure Resource & Monitoring Inventory\n\nLive Azure Resource Graph inventory and monitoring rule configuration."
+      },
+      "customWidth": "100",
+      "name": "Azure Resource Inventory Section",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "4px 8px"
       }
     },
     {
@@ -270,40 +805,81 @@
         "query": "Resources\n| where subscriptionId == '8bb846b6-1057-42bb-a02a-7a64e6a34178'\n| where resourceGroup =~ 'rg-portfolio'\n| project name, type, location, kind\n| order by type asc",
         "size": 0,
         "title": "Azure Resource Inventory",
+        "showRefreshButton": true,
         "queryType": 1,
         "resourceType": "microsoft.resourcegraph/resources",
         "visualization": "table"
       },
       "customWidth": "50",
-      "conditionalVisibility": {
-        "parameterName": "selectedTab",
-        "comparison": "isEqualTo",
-        "value": "analytics"
-      },
-      "name": "Azure Resource Inventory"
+      "name": "Azure Resource Inventory",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
     },
     {
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "Resources\n| where subscriptionId == '8bb846b6-1057-42bb-a02a-7a64e6a34178'\n| where resourceGroup =~ 'rg-portfolio'\n| where type in~ (\n    'microsoft.insights/scheduledqueryrules',\n    'microsoft.insights/metricalerts',\n    'microsoft.insights/actiongroups',\n    'microsoft.insights/webtests'\n)\n| extend Enabled = tostring(properties.enabled)\n| project name, type, location, Enabled\n| order by type asc",
-        "size": 0,
-        "title": "Monitoring Rules and Health Checks",
+        "query": "Resources\n| where resourceGroup =~ 'rg-portfolio'\n| where type in~ (\n    'microsoft.insights/metricalerts',\n    'microsoft.insights/scheduledqueryrules',\n    'microsoft.insights/webtests',\n    'microsoft.insights/actiongroups'\n)\n| extend Enabled=tostring(properties.enabled),\n         Severity=tostring(properties.severity),\n         EvaluationFrequency=tostring(properties.evaluationFrequency),\n         WindowSize=tostring(properties.windowSize),\n         MetricName=tostring(properties.criteria.allOf[0].metricName),\n         Threshold=tostring(properties.criteria.allOf[0].threshold),\n         ActionGroupCount=tostring(coalesce(array_length(properties.actions), array_length(properties.actions.actionGroups)))\n| project Name=name, RuleType=type, Enabled, Severity, EvaluationFrequency,\n          WindowSize, MetricName, Threshold, ActionGroupCount\n| order by RuleType asc, Name asc",
+        "size": 1,
+        "title": "Alert Rules, Thresholds & Action Groups",
+        "showRefreshButton": true,
         "queryType": 1,
         "resourceType": "microsoft.resourcegraph/resources",
-        "visualization": "table"
+        "visualization": "table",
+        "gridSettings": {
+          "rowLimit": 50,
+          "filter": true
+        }
       },
       "customWidth": "50",
-      "conditionalVisibility": {
-        "parameterName": "selectedTab",
-        "comparison": "isEqualTo",
-        "value": "analytics"
+      "name": "Monitoring Rules Inventory",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "exceptions\n| where timestamp >= ago(4d)\n| summarize Exceptions = count() by bin(timestamp, 6h), type\n| order by timestamp asc",
+        "size": 1,
+        "title": "Exception Trend \u2014 6-Hour Intervals",
+        "noDataMessage": "No data found for the selected period.",
+        "timeContext": {
+          "durationMs": 345600000
+        },
+        "showRefreshButton": true,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart",
+        "chartSettings": {
+          "xAxis": "timestamp",
+          "yAxis": [
+            "Exceptions"
+          ],
+          "group": "type",
+          "showLegend": true
+        }
       },
-      "name": "Monitoring Rules Inventory"
+      "customWidth": "100",
+      "name": "Exception Trend",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
     }
   ],
   "isLocked": true,
   "defaultResourceIds": [
-    "/subscriptions/8bb846b6-1057-42bb-a02a-7a64e6a34178/resourceGroups/rg-portfolio/providers/microsoft.insights/components/aniket-portfolio-api"
-  ]
+    "/subscriptions/8bb846b6-1057-42bb-a02a-7a64e6a34178/resourceGroups/rg-portfolio/providers/Microsoft.Insights/components/aniket-portfolio-api"
+  ],
+  "styleSettings": {
+    "paddingStyle": "narrow"
+  }
 }

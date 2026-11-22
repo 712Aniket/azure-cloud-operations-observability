@@ -1,0 +1,26 @@
+Resources
+| where resourceGroup =~ 'rg-portfolio'
+| where type in~ (
+    'microsoft.insights/components',
+    'microsoft.web/sites',
+    'microsoft.documentdb/databaseaccounts',
+    'microsoft.storage/storageaccounts',
+    'microsoft.insights/scheduledqueryrules',
+    'microsoft.insights/metricalerts',
+    'microsoft.insights/webtests',
+    'microsoft.consumption/budgets'
+)
+| extend HttpsOnly=tostring(properties.httpsOnly),
+         MinimumTlsVersion=tostring(properties.siteConfig.minTlsVersion),
+         PublicNetworkAccess=tostring(properties.publicNetworkAccess),
+         IdentityType=tostring(identity.type),
+         RetentionDays=tostring(properties.retentionInDays),
+         Enabled=tostring(properties.enabled),
+         BudgetAmount=tostring(properties.amount),
+         BudgetTimeGrain=tostring(properties.timeGrain),
+         BudgetStart=tostring(properties.timePeriod.startDate),
+         BudgetEnd=tostring(properties.timePeriod.endDate)
+| project Name=name, ResourceType=type, Location=location, HttpsOnly,
+          MinimumTlsVersion, PublicNetworkAccess, IdentityType, RetentionDays,
+          Enabled, BudgetAmount, BudgetTimeGrain, BudgetStart, BudgetEnd
+| order by ResourceType asc, Name asc

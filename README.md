@@ -1,3 +1,8 @@
+<!-- PROJECT2-PRIMARY-WORKBOOK -->
+## Primary Azure Workbook
+
+The primary workbook is **Azure Cloud Operations & Observability Platform** (`43a2aae2-21ba-417a-9a09-409792adcd64`). The retired workbook `28236c19-2756-48f5-8e4e-a176a4a8210d` is kept untouched for rollback. The canonical deployment source is `docs/workbook/workbook.json`. Run `python scripts/deploy_workbook.py` for preflight; add `--deploy` to update the primary workbook.
+
 # Azure Cloud Operations & Observability Platform
 
 An Azure-based cloud operations and observability project designed to monitor the health, availability, performance and failures of a serverless API.

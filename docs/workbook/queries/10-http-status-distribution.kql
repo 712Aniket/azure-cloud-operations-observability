@@ -1,0 +1,5 @@
+requests
+| where timestamp >= ago(4d)
+| extend StatusCode=iff(isempty(resultCode), 'Unknown', tostring(toint(resultCode)))
+| summarize Requests=count() by StatusCode
+| order by toint(StatusCode) asc

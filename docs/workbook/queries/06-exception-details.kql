@@ -1,0 +1,4 @@
+exceptions
+| where timestamp >= ago(4d)
+| summarize ExceptionCount = count(), FirstSeen = min(timestamp), LastSeen = max(timestamp), SampleMessage = take_any(iff(isempty(outerMessage), innermostMessage, outerMessage)) by ExceptionType = type
+| order by ExceptionCount desc
