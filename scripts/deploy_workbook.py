@@ -39,10 +39,13 @@ def validate_workbook(workbook: dict) -> int:
         names.append(item.get("name") or content.get("title") or "")
     if any(not name for name in names) or len(names) != len(set(names)):
         raise SystemExit("Preflight failed: component names are missing or duplicated.")
+    # Keep this set aligned with the canonical 24-component workbook export.
+    # The retired "Operations and Monitoring Section" and "Resume Analytics"
+    # components were removed in the current saved layout.
     required = {
-        "Project 2 Overview", "Operations and Monitoring Section",
+        "Project 2 Overview", "Exception Trend",
         "API Health - KPI Summary", "Portfolio Analytics Section",
-        "Portfolio KPI Summary", "Visitor Geography", "Resume Analytics",
+        "Portfolio KPI Summary", "Visitor Geography",
         "Certificate Analytics", "Security and Governance", "RBAC Role Assignments",
         "Azure Resource Inventory", "Monitoring Rules Inventory",
     }
