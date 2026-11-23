@@ -27,32 +27,34 @@ The platform uses Azure Monitor, Application Insights, Log Analytics, KQL, Terra
 
 ```mermaid
 flowchart TD
-    FRONTEND["Portfolio Frontend"] --> FUNCTION["Azure Function App"]
+    FRONTEND["Portfolio Frontend"] --> FUNCTION["Shared Azure Function App"]
     FUNCTION --> COSMOS["Azure Cosmos DB"]
     FUNCTION --> APPINSIGHTS["Application Insights"]
+    FUNCTION -. "Auxiliary daily cost-cache function" .-> BLOB["Private Azure Blob cache"]
 
-    APPINSIGHTS --> LOGS["Log Analytics Workspace"]
+    APPINSIGHTS --> LOGS["Log Analytics / KQL"]
     APPINSIGHTS --> MONITOR["Azure Monitor"]
-
     MONITOR --> FAILURE["HTTP 5xx Failure Alert"]
     MONITOR --> AVAILABILITY["API Availability Alert"]
-
     FAILURE --> ACTION["Action Group"]
     AVAILABILITY --> ACTION
     ACTION --> EMAIL["Email Notification"]
 
-    WORKBOOK["Azure Monitor Workbook"] --> LOGS
-
-    COST["Azure Cost Management"] --> DEPLOY["Python Workbook Deployment Script"]
-    COSMOS --> DEPLOY
-    DEPLOY --> ARM["Azure Resource Manager API"]
-    ARM --> WORKBOOK
+    WORKBOOK["Azure Monitor Workbook"]
+    WORKBOOK -->|"KQL telemetry queries"| LOGS
+    WORKBOOK -->|"CustomEndpoint: /api/portfolio-analytics"| FUNCTION
+    WORKBOOK -->|"ARMEndpoint: cost query"| COST["Azure Cost Management"]
+    WORKBOOK -->|"Resource inventory and RBAC queries"| ARG["Azure Resource Graph"]
 
     REPO["GitHub Repository"] --> ACTIONS["GitHub Actions"]
     ACTIONS --> OIDC["Microsoft Entra ID OIDC"]
     OIDC --> TERRAFORM["Terraform"]
     TERRAFORM --> STATE["Azure Storage Remote State"]
     TERRAFORM --> MONITOR
+
+    JSON["docs/workbook/workbook.json"] --> DEPLOY["deploy_workbook.py"]
+    DEPLOY --> MGMT["Azure Resource Manager management API"]
+    MGMT --> WORKBOOK
 ```
 
 ## Technology Stack
@@ -87,7 +89,7 @@ Region: `Central India`
 
 Application Insights retention is configured for 90 days.
 
-The Azure Monitor Workbook is deployed using `scripts/deploy_workbook.py` through the Azure Resource Manager API. It is maintained separately from the five Terraform-managed monitoring resources.
+The current workbook layout was saved in Azure Portal and exported to `docs/workbook/workbook.json`, which is the canonical serialized definition. `scripts/deploy_workbook.py` performs a preflight against the current 24-component layout and supports an explicit `--deploy` option for an Azure Resource Manager management-plane update. The workbook is maintained separately from the five Terraform-managed monitoring resources.
 
 ## Monitoring Configuration
 
@@ -147,6 +149,30 @@ Application Insights collects request telemetry and supports investigation of:
 - Availability results
 
 KQL is used to investigate application behaviour.
+
+### 4. Workbook Data Sources
+
+The 24-component workbook combines several data sources rather than relying on a single query backend:
+
+- **Application Insights / KQL:** request volume, HTTP status codes, failures, availability results, exceptions and API performance.
+- **Project 1 portfolio analytics endpoint:** the workbook's custom-endpoint panels call `GET /api/portfolio-analytics`, which returns aggregated visitor geography, resume/certificate event totals, and appreciation/engagement metrics from Cosmos DB.
+- **Azure Cost Management:** the cost panels use the Workbook's ARM endpoint to query the Cost Management Query API directly, grouping actual cost by date and resource. They do not call the Function App's `/api/cost-analytics` endpoint.
+- **Azure Resource Graph:** the inventory, security configuration and RBAC panels query Azure resource and authorization metadata.
+
+The Python deployment script publishes the workbook definition; it does not fetch Cost Management or Cosmos DB analytics data for the workbook.
+
+## Shared Project 1 Function App Extension
+
+Project 2 adds supporting endpoints to the existing Project 1 Function App. The latest extension source is maintained in the Project 1 repository's `resume-develop` branch:
+
+- `GET /api/portfolio-analytics` — anonymous, read-only, aggregated portfolio analytics endpoint used by the workbook's visitor, certificate and appreciation panels.
+- `GET /api/cost-analytics` — Function-key protected endpoint that reads the daily cost snapshot from a private Blob cache.
+- `POST /api/cost-cache-refresh` — Function-key protected on-demand refresh operation.
+- `daily_cost_cache_refresh` — timer-triggered daily refresh (02:30 UTC).
+
+The cost cache uses the Function App's system-assigned managed identity for Blob Storage and Azure Cost Management access. **The workbook does not depend on the cost-cache HTTP endpoints**: its cost panels query Azure Cost Management through the Workbook ARM endpoint directly. The auxiliary cache endpoints are retained as protected supporting API functionality.
+
+Source: [Project 1 API extension on `resume-develop`](https://github.com/712Aniket/azure-cloud-resume-challenge/tree/resume-develop/api).
 
 ## Terraform Infrastructure as Code
 
@@ -366,7 +392,8 @@ Completed:
 
 - **Azure budget alerts:** Not configured. Azure Cost Management data is visible in the workbook, but budget thresholds and notification alerts are outside the completed scope. Cost visibility is not automated budget enforcement.
 - **Storage / Terraform state isolation:** The Function App uses managed identity for its host storage and cost cache. Its identity has account-scope `Storage Blob Data Owner` access to storage account `aniketportfolio07`, which also contains the Terraform remote-state container. This is broader than the cache application alone requires and could allow the Function App identity to access Terraform state. The storage account was not migrated or split as part of this short-term hardening pass; treat this as a residual risk during operation and decommissioning.
-- **Cosmos DB network exception:** The Cosmos DB firewall retains selected IP rules and includes the `0.0.0.0` Azure-datacenter exception to support the Function App's dynamic Flex Consumption outbound networking. This is broader than an allowlist for only this Function App. Cosmos DB local/key authentication is disabled, so callers still require Microsoft Entra ID authorization.
+- **Cosmos DB network exception:** The Cosmos DB firewall retains 31 selected IP entries and includes the `0.0.0.0` Azure-datacenter exception (32 rules total) to keep the Flex Consumption Function App reachable despite its changing outbound IPs. This is broader than an allowlist for only this Function App; it allows network connection attempts from Azure datacenters generally. Cosmos DB local/key authentication is disabled, so a caller still needs valid Microsoft Entra ID authorization.
+- **FTPS deployment access:** The Function App's current FTP state is `FtpsOnly`. This blocks unencrypted FTP but does not disable FTP-based deployment access altogether. Review and disable it when no longer needed, after confirming no deployment process depends on it.
 - **Decommissioning:** Project 1 and Project 2 share resources in `rg-portfolio`. Do not delete the entire resource group to remove Project 2; identify and remove Project 2-only resources individually, preserving the live portfolio API, visitor counter and their dependencies.
 
 These limitations are documented rather than treated as completed controls. Reassess them before reusing or extending this deployment.
