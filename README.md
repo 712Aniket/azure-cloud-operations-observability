@@ -277,6 +277,22 @@ The following tests have been performed:
 | Manual deployment approval | Verified |
 | Terraform apply | 0 added, 0 changed, 0 destroyed |
 
+Additional security and regression verification:
+
+| Test | Result |
+|---|---|
+| Function App HTTPS-only setting | Enabled |
+| HTTP health request redirects to HTTPS | HTTP 301 verified |
+| Anonymous cost analytics request | HTTP 401 verified |
+| Anonymous cost cache refresh request | HTTP 401 verified |
+| Cosmos DB local/key authentication | Disabled |
+| Cosmos DB firewall rules | 32 rules, including the Azure datacenter exception |
+| Health endpoint after security changes | HTTP 200 |
+| Visitor counter after security changes | HTTP 200 |
+| Portfolio analytics after security changes | HTTP 200 |
+
+The cost analytics and cost-cache-refresh HTTP endpoints require a Function key. The Azure Monitor Workbook's cost panels query Azure Cost Management through Azure Resource Manager directly; they do not depend on the Function App's `/api/cost-analytics` endpoint.
+
 Note: Azure Monitor Action Group test notifications are not supported on the current Azure Free Trial subscription. Actual alert firing and email notification were verified using the controlled HTTP 500 test.
 
 ## Repository Structure
@@ -315,37 +331,45 @@ azure-cloud-operations-observability/
 
 ## Documentation and Evidence
 
-Monitoring and operational evidence is maintained in `docs/screenshots/`.
+Monitoring and operational evidence is maintained in `docs/screenshots/`. The repository contains 20 sanitized evidence screenshots.
 
-The Azure Monitor Workbook definition and KQL queries are maintained in `docs/workbook/`.
+The Azure Monitor Workbook definition and KQL queries are maintained in `docs/workbook/`. The current primary workbook contains 24 components.
 
 Workbook deployment is handled by `scripts/deploy_workbook.py`.
 
-Operational procedures are documented in `docs/runbooks/`, including API availability, API failure investigation and Application Insights troubleshooting.
+Operational procedures are documented in `docs/runbooks/`, including API availability, API failure investigation and Application Insights troubleshooting. Three operational runbooks are maintained in the repository.
 
 ## Project Status
 
-**Status: In Progress**
+**Status: Completed — agreed core scope**
+
+The agreed core objectives for the Azure Cloud Operations & Observability Platform have been implemented and verified.
 
 Completed:
 - Azure monitoring infrastructure and Application Insights integration.
 - Log Analytics investigation using KQL.
 - HTTP 5xx failure alerting and API availability monitoring.
-- Azure Monitor Workbook with 10 dashboard components.
+- Application performance, dependency and exception investigation.
+- Azure Monitor Workbook with 24 components, synchronized to `docs/workbook/workbook.json`.
 - Portfolio visitor, resume and certificate analytics in the workbook.
+- Portfolio engagement and appreciation analytics.
 - Azure Cost Management integration for cost visibility.
 - Python-based Azure Workbook deployment and verification.
-- Terraform infrastructure management and remote state.
+- Terraform infrastructure management and Azure Storage remote state.
 - GitHub Actions Terraform CI and deployment workflows.
-- Microsoft Entra ID OIDC authentication.
-- Separate CI and deployment identities.
-- Protected deployment approval.
+- Microsoft Entra ID OIDC authentication, separate CI/deployment identities and protected deployment approval.
 - Controlled failure testing and alert notification verification.
-- Three operational runbooks and monitoring evidence screenshots.
+- Three operational runbooks and 20 sanitized evidence screenshots.
+- Security hardening and final API regression tests: HTTPS-only enabled, cost endpoints protected by Function keys, Cosmos DB local authentication disabled, and Cosmos DB network rules configured.
 
-Remaining:
-- Final repository, documentation and security review.
-- Review cost governance options; Azure budget thresholds and budget alerts are not currently configured.
+### Deferred items and known limitations
+
+- **Azure budget alerts:** Not configured. Azure Cost Management data is visible in the workbook, but budget thresholds and notification alerts are outside the completed scope. Cost visibility is not automated budget enforcement.
+- **Storage / Terraform state isolation:** The Function App uses managed identity for its host storage and cost cache. Its identity has account-scope `Storage Blob Data Owner` access to storage account `aniketportfolio07`, which also contains the Terraform remote-state container. This is broader than the cache application alone requires and could allow the Function App identity to access Terraform state. The storage account was not migrated or split as part of this short-term hardening pass; treat this as a residual risk during operation and decommissioning.
+- **Cosmos DB network exception:** The Cosmos DB firewall retains selected IP rules and includes the `0.0.0.0` Azure-datacenter exception to support the Function App's dynamic Flex Consumption outbound networking. This is broader than an allowlist for only this Function App. Cosmos DB local/key authentication is disabled, so callers still require Microsoft Entra ID authorization.
+- **Decommissioning:** Project 1 and Project 2 share resources in `rg-portfolio`. Do not delete the entire resource group to remove Project 2; identify and remove Project 2-only resources individually, preserving the live portfolio API, visitor counter and their dependencies.
+
+These limitations are documented rather than treated as completed controls. Reassess them before reusing or extending this deployment.
 
 ## Cost Management
 
