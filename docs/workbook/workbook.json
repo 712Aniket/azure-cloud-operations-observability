@@ -743,7 +743,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "{\"version\":\"ARMEndpoint/1.0\",\"data\":\"{\\\"type\\\":\\\"ActualCost\\\",\\\"timeframe\\\":\\\"MonthToDate\\\",\\\"dataset\\\":{\\\"granularity\\\":\\\"Daily\\\",\\\"aggregation\\\":{\\\"totalCost\\\":{\\\"name\\\":\\\"PreTaxCost\\\",\\\"function\\\":\\\"Sum\\\"}},\\\"grouping\\\":[{\\\"type\\\":\\\"Dimension\\\",\\\"name\\\":\\\"ResourceId\\\"}]}}\",\"headers\":[{\"key\":\"Content-Type\",\"value\":\"application/json\"}],\"method\":\"POST\",\"path\":\"/subscriptions/8bb846b6-1057-42bb-a02a-7a64e6a34178/resourceGroups/rg-portfolio/providers/Microsoft.CostManagement/query?api-version=2025-03-01\",\"urlParams\":[],\"batchDisabled\":true,\"transformers\":[{\"type\":\"jsonpath\",\"settings\":{\"tablePath\":\"$.properties.rows[*]\",\"columns\":[{\"path\":\"$[0]\",\"columnid\":\"Cost\",\"columnType\":\"number\"},{\"path\":\"$[1]\",\"columnid\":\"UsageDate\",\"columnType\":\"datetime\",\"substringRegexMatch\":\"([0-9]{4})([0-9]{2})([0-9]{2})\",\"substringReplace\":\"$1-$2-$3\"},{\"path\":\"$[2]\",\"columnid\":\"Currency\",\"columnType\":\"string\"},{\"path\":\"$[3]\",\"columnid\":\"ResourceId\",\"columnType\":\"string\"}]}}]}",
+        "query": "{\"version\":\"ARMEndpoint/1.0\",\"data\":\"{\\\"type\\\":\\\"ActualCost\\\",\\\"timeframe\\\":\\\"MonthToDate\\\",\\\"dataset\\\":{\\\"granularity\\\":\\\"Daily\\\",\\\"aggregation\\\":{\\\"totalCost\\\":{\\\"name\\\":\\\"PreTaxCost\\\",\\\"function\\\":\\\"Sum\\\"}},\\\"grouping\\\":[{\\\"type\\\":\\\"Dimension\\\",\\\"name\\\":\\\"ResourceId\\\"},{\\\"type\\\":\\\"Dimension\\\",\\\"name\\\":\\\"ServiceName\\\"}]}}\",\"headers\":[{\"key\":\"Content-Type\",\"value\":\"application/json\"}],\"method\":\"POST\",\"path\":\"/subscriptions/8bb846b6-1057-42bb-a02a-7a64e6a34178/resourceGroups/rg-portfolio/providers/Microsoft.CostManagement/query?api-version=2025-03-01\",\"urlParams\":[],\"batchDisabled\":true,\"transformers\":[{\"type\":\"jsonpath\",\"settings\":{\"tablePath\":\"$.properties.rows[*]\",\"columns\":[{\"path\":\"$[0]\",\"columnid\":\"Cost\",\"columnType\":\"number\"},{\"path\":\"$[1]\",\"columnid\":\"UsageDate\",\"columnType\":\"datetime\",\"substringRegexMatch\":\"([0-9]{4})([0-9]{2})([0-9]{2})\",\"substringReplace\":\"$1-$2-$3\"},{\"path\":\"$[2]\",\"columnid\":\"Currency\",\"columnType\":\"string\"},{\"path\":\"$[3]\",\"columnid\":\"ResourceId\",\"columnType\":\"string\"},{\"path\":\"$[4]\",\"columnid\":\"ServiceName\",\"columnType\":\"string\"}]}}]}",
         "size": 1,
         "title": "Daily Azure Cost Trend — By Resource",
         "noDataMessage": "Cost Management returned no daily cost rows for rg-portfolio.",
@@ -772,18 +772,21 @@
         "version": "KqlItem/1.0",
         "query": "{\"version\":\"Merge/1.0\",\"merges\":[{\"id\":\"9ba69297-9331-5dbc-bbcf-5cedab7963ef\",\"mergeType\":\"table\",\"leftTable\":\"Azure Daily Cost Trend\"}],\"projectRename\":[{\"originalName\":\"[Azure Daily Cost Trend].Cost\",\"mergedName\":\"Cost\",\"fromId\":\"9ba69297-9331-5dbc-bbcf-5cedab7963ef\"},{\"originalName\":\"[Azure Daily Cost Trend].UsageDate\",\"mergedName\":\"UsageDate\",\"fromId\":\"9ba69297-9331-5dbc-bbcf-5cedab7963ef\"},{\"originalName\":\"[Azure Daily Cost Trend].Currency\",\"mergedName\":\"Currency\",\"fromId\":\"9ba69297-9331-5dbc-bbcf-5cedab7963ef\"},{\"originalName\":\"[Azure Daily Cost Trend].ResourceId\",\"mergedName\":\"ResourceId\",\"fromId\":\"9ba69297-9331-5dbc-bbcf-5cedab7963ef\"}]}",
         "size": 1,
-        "title": "Daily Cost Detail by Azure Resource",
+        "title": "Month-to-Date Cost by Resource (Expandable)",
         "noDataMessage": "The daily cost query returned no resource-level rows.",
         "queryType": 7,
-        "visualization": "piechart",
+        "visualization": "table",
         "gridSettings": {
+          "rowLimit": 10000,
+          "filter": true,
           "formatters": [
             {
               "columnMatch": "Cost",
               "formatter": 8,
               "formatOptions": {
+                "min": 0,
                 "palette": "blue",
-                "min": 0
+                "aggregation": "Sum"
               },
               "numberFormat": {
                 "unit": 0,
@@ -803,11 +806,81 @@
               "formatter": 1
             }
           ],
-          "filter": true
+          "hierarchySettings": {
+            "treeType": 1,
+            "groupBy": [
+              "ResourceId"
+            ],
+            "expandTopLevel": true,
+            "finalBy": "UsageDate"
+          }
         }
       },
       "customWidth": "50",
       "name": "Azure Cost by Resource",
+      "styleSettings": {
+        "margin": "4px 0 4px 0",
+        "padding": "6px",
+        "showBorder": true
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "{\"version\":\"Merge/1.0\",\"merges\":[{\"id\":\"a5b9d32f-3dc7-4b4d-9f05-e9468b102632\",\"mergeType\":\"table\",\"leftTable\":\"Azure Daily Cost Trend\"}],\"projectRename\":[{\"originalName\":\"[Azure Daily Cost Trend].Cost\",\"mergedName\":\"Cost\",\"fromId\":\"a5b9d32f-3dc7-4b4d-9f05-e9468b102632\"},{\"originalName\":\"[Azure Daily Cost Trend].UsageDate\",\"mergedName\":\"UsageDate\",\"fromId\":\"a5b9d32f-3dc7-4b4d-9f05-e9468b102632\"},{\"originalName\":\"[Azure Daily Cost Trend].Currency\",\"mergedName\":\"Currency\",\"fromId\":\"a5b9d32f-3dc7-4b4d-9f05-e9468b102632\"},{\"originalName\":\"[Azure Daily Cost Trend].ServiceName\",\"mergedName\":\"ServiceName\",\"fromId\":\"a5b9d32f-3dc7-4b4d-9f05-e9468b102632\"}]}",
+        "size": 1,
+        "title": "Month-to-Date Cost by Service and Resource (Expandable)",
+        "noDataMessage": "The daily cost query returned no service-level rows.",
+        "queryType": 7,
+        "visualization": "table",
+        "gridSettings": {
+          "rowLimit": 10000,
+          "filter": true,
+          "formatters": [
+            {
+              "columnMatch": "Cost",
+              "formatter": 8,
+              "formatOptions": {
+                "min": 0,
+                "palette": "blue",
+                "aggregation": "Sum"
+              },
+              "numberFormat": {
+                "unit": 0,
+                "options": {
+                  "style": "currency",
+                  "currency": "INR",
+                  "maximumFractionDigits": 2
+                }
+              }
+            },
+            {
+              "columnMatch": "ServiceName",
+              "formatter": 1
+            },
+            {
+              "columnMatch": "ResourceId",
+              "formatter": 1
+            },
+            {
+              "columnMatch": "UsageDate",
+              "formatter": 6
+            }
+          ],
+          "hierarchySettings": {
+            "treeType": 1,
+            "groupBy": [
+              "ServiceName",
+              "ResourceId"
+            ],
+            "expandTopLevel": true,
+            "finalBy": "UsageDate"
+          }
+        }
+      },
+      "customWidth": "100",
+      "name": "Azure Cost by Service",
       "styleSettings": {
         "margin": "4px 0 4px 0",
         "padding": "6px",

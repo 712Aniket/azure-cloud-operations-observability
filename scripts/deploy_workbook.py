@@ -39,7 +39,8 @@ def validate_workbook(workbook: dict) -> int:
         names.append(item.get("name") or content.get("title") or "")
     if any(not name for name in names) or len(names) != len(set(names)):
         raise SystemExit("Preflight failed: component names are missing or duplicated.")
-    # Keep this set aligned with the canonical 24-component workbook export.
+    # Keep required anchors aligned with the canonical workbook export. Additional
+    # cost/analytics visualizations can be added without weakening these checks.
     # The retired "Operations and Monitoring Section" and "Resume Analytics"
     # components were removed in the current saved layout.
     required = {
