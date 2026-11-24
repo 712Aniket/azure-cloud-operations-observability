@@ -772,18 +772,21 @@
         "version": "KqlItem/1.0",
         "query": "{\"version\":\"Merge/1.0\",\"merges\":[{\"id\":\"9ba69297-9331-5dbc-bbcf-5cedab7963ef\",\"mergeType\":\"table\",\"leftTable\":\"Azure Daily Cost Trend\"}],\"projectRename\":[{\"originalName\":\"[Azure Daily Cost Trend].Cost\",\"mergedName\":\"Cost\",\"fromId\":\"9ba69297-9331-5dbc-bbcf-5cedab7963ef\"},{\"originalName\":\"[Azure Daily Cost Trend].UsageDate\",\"mergedName\":\"UsageDate\",\"fromId\":\"9ba69297-9331-5dbc-bbcf-5cedab7963ef\"},{\"originalName\":\"[Azure Daily Cost Trend].Currency\",\"mergedName\":\"Currency\",\"fromId\":\"9ba69297-9331-5dbc-bbcf-5cedab7963ef\"},{\"originalName\":\"[Azure Daily Cost Trend].ResourceId\",\"mergedName\":\"ResourceId\",\"fromId\":\"9ba69297-9331-5dbc-bbcf-5cedab7963ef\"}]}",
         "size": 1,
-        "title": "Daily Cost Detail by Azure Resource",
+        "title": "Month-to-Date Cost by Resource (Expandable)",
         "noDataMessage": "The daily cost query returned no resource-level rows.",
         "queryType": 7,
-        "visualization": "piechart",
+        "visualization": "table",
         "gridSettings": {
+          "rowLimit": 10000,
+          "filter": true,
           "formatters": [
             {
               "columnMatch": "Cost",
               "formatter": 8,
               "formatOptions": {
+                "min": 0,
                 "palette": "blue",
-                "min": 0
+                "aggregation": "Sum"
               },
               "numberFormat": {
                 "unit": 0,
@@ -803,7 +806,14 @@
               "formatter": 1
             }
           ],
-          "filter": true
+          "hierarchySettings": {
+            "treeType": 1,
+            "groupBy": [
+              "ResourceId"
+            ],
+            "expandTopLevel": true,
+            "finalBy": "UsageDate"
+          }
         }
       },
       "customWidth": "50",
@@ -820,18 +830,21 @@
         "version": "KqlItem/1.0",
         "query": "{\"version\":\"Merge/1.0\",\"merges\":[{\"id\":\"a5b9d32f-3dc7-4b4d-9f05-e9468b102632\",\"mergeType\":\"table\",\"leftTable\":\"Azure Daily Cost Trend\"}],\"projectRename\":[{\"originalName\":\"[Azure Daily Cost Trend].Cost\",\"mergedName\":\"Cost\",\"fromId\":\"a5b9d32f-3dc7-4b4d-9f05-e9468b102632\"},{\"originalName\":\"[Azure Daily Cost Trend].UsageDate\",\"mergedName\":\"UsageDate\",\"fromId\":\"a5b9d32f-3dc7-4b4d-9f05-e9468b102632\"},{\"originalName\":\"[Azure Daily Cost Trend].Currency\",\"mergedName\":\"Currency\",\"fromId\":\"a5b9d32f-3dc7-4b4d-9f05-e9468b102632\"},{\"originalName\":\"[Azure Daily Cost Trend].ServiceName\",\"mergedName\":\"ServiceName\",\"fromId\":\"a5b9d32f-3dc7-4b4d-9f05-e9468b102632\"}]}",
         "size": 1,
-        "title": "Month-to-Date Azure Cost by Service",
+        "title": "Month-to-Date Cost by Service and Resource (Expandable)",
         "noDataMessage": "The daily cost query returned no service-level rows.",
         "queryType": 7,
-        "visualization": "piechart",
+        "visualization": "table",
         "gridSettings": {
+          "rowLimit": 10000,
+          "filter": true,
           "formatters": [
             {
               "columnMatch": "Cost",
               "formatter": 8,
               "formatOptions": {
+                "min": 0,
                 "palette": "blue",
-                "min": 0
+                "aggregation": "Sum"
               },
               "numberFormat": {
                 "unit": 0,
@@ -843,15 +856,27 @@
               }
             },
             {
-              "columnMatch": "UsageDate",
-              "formatter": 6
-            },
-            {
               "columnMatch": "ServiceName",
               "formatter": 1
+            },
+            {
+              "columnMatch": "ResourceId",
+              "formatter": 1
+            },
+            {
+              "columnMatch": "UsageDate",
+              "formatter": 6
             }
           ],
-          "filter": true
+          "hierarchySettings": {
+            "treeType": 1,
+            "groupBy": [
+              "ServiceName",
+              "ResourceId"
+            ],
+            "expandTopLevel": true,
+            "finalBy": "UsageDate"
+          }
         }
       },
       "customWidth": "100",
