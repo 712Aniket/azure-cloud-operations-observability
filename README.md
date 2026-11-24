@@ -102,7 +102,7 @@ Region: `Central India`
 
 Application Insights retention is configured for 90 days.
 
-The current workbook layout was saved in Azure Portal and exported to `docs/workbook/workbook.json`, which is the canonical serialized definition. `scripts/deploy_workbook.py` performs a preflight against the current 24-component layout and supports an explicit `--deploy` option for an Azure Resource Manager management-plane update. The workbook is maintained separately from the five Terraform-managed monitoring resources.
+The current workbook layout was saved in Azure Portal and exported to `docs/workbook/workbook.json`, which is the canonical serialized definition. `scripts/deploy_workbook.py` performs a preflight against the canonical workbook layout and supports an explicit `--deploy` option for an Azure Resource Manager management-plane update. The workbook is maintained separately from the five Terraform-managed monitoring resources.
 
 ## Monitoring Configuration
 
@@ -168,11 +168,11 @@ KQL is used to investigate application behaviour.
 
 ### 4. Workbook Data Sources
 
-The 24-component workbook combines several data sources rather than relying on a single query backend:
+The 25-component workbook combines several data sources rather than relying on a single query backend:
 
 - **Application Insights / KQL:** request volume, HTTP status codes, failures, availability results, exceptions and API performance.
 - **Project 1 portfolio analytics endpoint:** the workbook's custom-endpoint panels call `GET /api/portfolio-analytics`, which returns aggregated visitor geography, resume/certificate event totals, and appreciation/engagement metrics from Cosmos DB.
-- **Azure Cost Management:** the cost panels use the Workbook's ARM endpoint to query the Cost Management Query API directly, grouping actual cost by date and resource. They do not call the Function App's `/api/cost-analytics` endpoint.
+- **Azure Cost Management:** the cost panels use the Workbook's ARM endpoint to query the Cost Management Query API directly, grouping actual cost by date, resource and service. The service-level chart reuses the same Cost Management result set as the resource chart, avoiding a second query. They do not call the Function App's `/api/cost-analytics` endpoint.
 - **Azure Resource Graph:** the inventory, security configuration and RBAC panels query Azure resource and authorization metadata.
 
 The Python deployment script publishes the workbook definition; it does not fetch Cost Management or Cosmos DB analytics data for the workbook.
@@ -390,7 +390,7 @@ azure-cloud-operations-observability/
 
 Monitoring and operational evidence is maintained in `docs/screenshots/`. The repository contains 20 sanitized evidence screenshots.
 
-The Azure Monitor Workbook definition and KQL queries are maintained in `docs/workbook/`. The current primary workbook contains 24 components.
+The Azure Monitor Workbook definition and KQL queries are maintained in `docs/workbook/`. The current primary workbook contains 25 components.
 
 Workbook deployment is handled by `scripts/deploy_workbook.py`.
 
@@ -407,7 +407,7 @@ Completed:
 - Log Analytics investigation using KQL.
 - HTTP 5xx failure alerting and API availability monitoring.
 - Application performance, dependency and exception investigation.
-- Azure Monitor Workbook with 24 components, synchronized to `docs/workbook/workbook.json`.
+- Azure Monitor Workbook with 25 components, synchronized to `docs/workbook/workbook.json`.
 - Portfolio visitor, resume and certificate analytics in the workbook.
 - Portfolio engagement and appreciation analytics.
 - Azure Cost Management integration for cost visibility.
@@ -445,7 +445,7 @@ The separate Apply OIDC identity has now been independently verified after the s
 
 The project uses the existing Azure Free Trial subscription and available credits.
 
-Cost visibility is integrated into the Azure Monitor Workbook using Azure Cost Management data.
+Cost visibility is integrated into the Azure Monitor Workbook using Azure Cost Management data. The workbook shows month-to-date daily costs by resource, resource-level distribution and service-level distribution. The resource and service charts reuse one daily Cost Management response.
 
 Cost-conscious practices:
 - Reuse existing Azure resources.
