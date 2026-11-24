@@ -28,20 +28,22 @@ Azure Monitor uses a scheduled query alert to detect HTTP 5xx server errors.
 ```kusto
 requests
 | where toint(resultCode) >= 500
-| where timestamp > ago(5m)
+| where timestamp > ago(15m)
 ```
 
 ### Alert Configuration
 
 | Configuration | Value |
 |---|---|
-| Evaluation Frequency | 5 minutes |
-| Evaluation Window | 5 minutes |
+| Evaluation Frequency | 15 minutes |
+| Aggregation Granularity | 5 minutes |
+| Evaluation Period | 15 minutes (3 aggregated points) |
+| Query Time Range Override | 2 days (KQL predicate restricts matching requests to the last 15 minutes) |
 | Time Aggregation | Count |
 | Operator | GreaterThan |
 | Threshold | 0 |
 | Minimum Failing Periods | 1 |
-| Evaluation Periods | 1 |
+| Evaluation Periods | 3 |
 | Severity | 2 - Warning |
 | Action Group | ag-portfolio-failures |
 
