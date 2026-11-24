@@ -115,14 +115,17 @@ KQL query:
 ```kusto
 requests
 | where toint(resultCode) >= 500
-| where timestamp > ago(5m)
+| where timestamp > ago(15m)
 ```
 
 Configuration:
 
 - Severity: 2 - Warning
-- Evaluation frequency: 5 minutes
-- Evaluation window: 5 minutes
+- Evaluation frequency: 15 minutes
+- Aggregation granularity (window size): 5 minutes
+- Evaluation period: 15 minutes (3 aggregated points)
+- Violations required: 1 of 3 aggregated points
+- Query time range override: 2 days (the KQL predicate restricts matching requests to the last 15 minutes)
 - Threshold: Greater than 0 failures
 - Action: Send notification through the configured Action Group
 
