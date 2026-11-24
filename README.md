@@ -371,6 +371,7 @@ azure-cloud-operations-observability/
 │   └── variables.tf
 │
 ├── scripts/
+│   ├── close_completed_azure_boards_items.py
 │   ├── deploy_workbook.py
 │   └── read_cost_cache.py
 ├── work_items/
@@ -412,7 +413,7 @@ Completed:
 - GitHub Actions Terraform CI and deployment workflows.
 - Microsoft Entra ID OIDC authentication, separate CI/deployment identities and protected deployment approval.
 - Controlled failure testing and alert notification verification.
-- Three operational runbooks and 20 sanitized evidence screenshots.
+- Six operational runbooks and 20 sanitized evidence screenshots.
 - Security hardening and final API regression tests: HTTPS-only enabled, cost endpoints protected by Function keys, Cosmos DB local authentication disabled, and Cosmos DB network rules configured.
 
 ### Deferred items and known limitations
@@ -424,6 +425,8 @@ Completed:
 - **Decommissioning:** Project 1 and Project 2 share resources in `rg-portfolio`. Do not delete the entire resource group to remove Project 2; identify and remove Project 2-only resources individually, preserving the live portfolio API, visitor counter and their dependencies.
 
 These limitations are documented rather than treated as completed controls. Reassess them before reusing or extending this deployment.
+- **Resource-level cost review:** The cost query previously returned HTTP 429. Use the read-only `scripts/read_cost_cache.py` report to inspect the existing daily cache first. It does not trigger a new Cost Management request. Keep the Cost Management backlog active until a fresh snapshot is successfully reviewed and charges are attributed between Project 1, Project 2 and shared resources.
+- **Network scope:** A separate VNet/subnet/private endpoint is not part of the current public API baseline. The architecture decision and revisit triggers are documented in `docs/runbooks/networking-scope.md`. No VNet deployment is claimed.
 
 ## Final Operational Readiness
 
