@@ -30,10 +30,11 @@ Azure DevOps Boards is used to plan and track Project 2 delivery. The backlog is
 The repository includes backlog-management helpers under `work_items/`:
 
 - `work_items/epics.py` checks existing Epic titles and creates missing planned Epics.
-- `work_items/backlog.py` uses WIQL and parent-child relationships to check existing work items, then creates missing Features, User Stories and Tasks without intentionally duplicating matching items.
-- `config.py` reads `AZDO_ORG`, `AZDO_PROJECT` and `AZDO_PAT` from the local environment. Keep the Personal Access Token in an untracked `.env` file; never commit it.
+- `work_items/backlog.py` uses WIQL and parent-child relationships to check existing work items, then creates missing Features, User Stories and Tasks without intentionally duplicating matching items (it checks the type, parent and title before creating).
+- The checked-in backlog template defines **9 planned Epics**, **12 Feature/User Story groups**, and **24 implementation Tasks**.
+- `config.py` reads `AZDO_ORG`, `AZDO_PROJECT` and `AZDO_PAT` from the local environment. Keep the Personal Access Token in an untracked `.env` file; never commit it or print it in logs.
 
-These scripts seed and maintain the backlog; Azure Boards remains the project work-tracking surface. They are separate from the Terraform infrastructure deployment workflows.
+These scripts seed and maintain the backlog; Azure Boards remains the project work-tracking surface and source of current work-item status. They are separate from the Terraform infrastructure deployment workflows. The live board's organization/project URL is intentionally not hard-coded in this public README because it is supplied through local environment configuration.
 
 ## Architecture
 
