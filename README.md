@@ -23,6 +23,18 @@ The platform uses Azure Monitor, Application Insights, Log Analytics, KQL, Terra
 - Automate Terraform validation and deployment using GitHub Actions.
 - Authenticate GitHub Actions securely using Microsoft Entra ID OIDC.
 
+## Azure Boards – Project Planning and Work Tracking
+
+Azure DevOps Boards is used to plan and track Project 2 delivery. The backlog is structured hierarchically as **Epics → Features → User Stories → Tasks**.
+
+The repository includes backlog-management helpers under `work_items/`:
+
+- `work_items/epics.py` checks existing Epic titles and creates missing planned Epics.
+- `work_items/backlog.py` uses WIQL and parent-child relationships to check existing work items, then creates missing Features, User Stories and Tasks without intentionally duplicating matching items.
+- `config.py` reads `AZDO_ORG`, `AZDO_PROJECT` and `AZDO_PAT` from the local environment. Keep the Personal Access Token in an untracked `.env` file; never commit it.
+
+These scripts seed and maintain the backlog; Azure Boards remains the project work-tracking surface. They are separate from the Terraform infrastructure deployment workflows.
+
 ## Architecture
 
 ```mermaid
@@ -187,13 +199,17 @@ Terraform state is stored remotely in Azure Storage.
 | Setting | Value |
 |---|---|
 | Resource Group | `rg-portfolio` |
-| Storage Account | `aniketportfolio07` |
-| Container | `terraform-state` |
+| Storage Account | `aniketterraformstate26` |
+| Container | `project2-tfstate` |
 | State Key | `project2.tfstate` |
-| Authentication | Azure AD |
-| CI Authentication | OIDC |
+| Authentication | Microsoft Entra ID / Azure AD |
+| CI Authentication | GitHub Actions OIDC |
+| Apply Authentication | Separate GitHub OIDC deployment identity |
+| State access | Blob Data Contributor scoped to the Project 2 container |
 
-Terraform state files are not committed to GitHub.
+The state migration moved `project2.tfstate` from `aniketportfolio07/terraform-state` to `aniketterraformstate26/project2-tfstate`. The source state was backed up before migration; the destination state retained the original lineage and resource set, with the expected serial increment. The old Project 2 state blob was deleted only after the destination was checked, and the local backup was retained.
+
+The dedicated state storage account also has a separate private `project1-tfstate` container for Project 1. Public blob access and shared-key authentication are disabled on the dedicated account; Terraform state files are not committed to GitHub.
 
 ### Local Terraform Commands
 
@@ -298,10 +314,12 @@ The following tests have been performed:
 | Action Group email notification | Verified |
 | Temporary failure endpoint removal | Completed |
 | Visitor counter after test | Verified |
-| Terraform CI workflow | Successful |
-| Terraform deployment workflow | Successful |
-| Manual deployment approval | Verified |
-| Terraform apply | 0 added, 0 changed, 0 destroyed |
+| Terraform CI before state migration | Successful |
+| Terraform Apply before state migration | Successful; manual approval verified |
+| Terraform Apply before state migration | 0 added, 0 changed, 0 destroyed |
+| Terraform CI after state migration | Successful on commit `5ac1ed1356de77db87e28be51a5e397243a3c61b` (run [45362003217](https://github.com/712Aniket/azure-cloud-operations-observability/actions/runs/45362003217)) |
+| Terraform plan after state migration | No changes; state lock acquired and released |
+| Separate Apply OIDC identity after state migration | **Pending independent verification** |
 
 Additional security and regression verification:
 
@@ -390,8 +408,8 @@ Completed:
 
 ### Deferred items and known limitations
 
-- **Azure budget alerts:** Not configured. Azure Cost Management data is visible in the workbook, but budget thresholds and notification alerts are outside the completed scope. Cost visibility is not automated budget enforcement.
-- **Storage / Terraform state isolation:** The Function App uses managed identity for its host storage and cost cache. Its identity has account-scope `Storage Blob Data Owner` access to storage account `aniketportfolio07`, which also contains the Terraform remote-state container. This is broader than the cache application alone requires and could allow the Function App identity to access Terraform state. The storage account was not migrated or split as part of this short-term hardening pass; treat this as a residual risk during operation and decommissioning.
+- **Azure budget:** A `₹300/month` budget named `portfolio-monthly-budget` is configured at the `rg-portfolio` scope for 1 November 2026 through 31 October 2027. It sends notifications at 50%, 80% and 100% actual spend, plus 100% forecasted spend, through `ag-portfolio-failures`. Because the budget is resource-group scoped, it covers Project 1 and Project 2 resources together; it is not a Project 2-only limit. Budget notifications do not stop or throttle resource spending.
+- **Function runtime storage permissions:** Terraform state has been moved out of `aniketportfolio07` into the dedicated `aniketterraformstate26` account, with separate private containers for Project 1 and Project 2. The Function App still uses `aniketportfolio07` for host/runtime storage and its auxiliary cost cache, and its managed identity retains account-scope `Storage Blob Data Owner` on that old application-storage account. That permission is broader than a cache-only role, but the old account no longer contains the Project 1 or Project 2 Terraform state. Continue to review whether the Function identity can be narrowed without disrupting the Functions host.
 - **Cosmos DB network exception:** The Cosmos DB firewall retains 31 selected IP entries and includes the `0.0.0.0` Azure-datacenter exception (32 rules total) to keep the Flex Consumption Function App reachable despite its changing outbound IPs. This is broader than an allowlist for only this Function App; it allows network connection attempts from Azure datacenters generally. Cosmos DB local/key authentication is disabled, so a caller still needs valid Microsoft Entra ID authorization.
 - **FTPS deployment access:** The Function App's current FTP state is `FtpsOnly`. This blocks unencrypted FTP but does not disable FTP-based deployment access altogether. Review and disable it when no longer needed, after confirming no deployment process depends on it.
 - **Decommissioning:** Project 1 and Project 2 share resources in `rg-portfolio`. Do not delete the entire resource group to remove Project 2; identify and remove Project 2-only resources individually, preserving the live portfolio API, visitor counter and their dependencies.
@@ -411,7 +429,7 @@ Cost-conscious practices:
 - Review Azure Cost Management regularly.
 - Avoid upgrading the subscription solely for testing.
 
-Current limitation: Cost data is visible in the workbook, but budget thresholds and budget alerts have not been configured. Cost visibility should not be interpreted as automated budget enforcement or notification.
+A resource-group budget named `portfolio-monthly-budget` is configured for `₹300/month` with 50%, 80% and 100% actual-spend notifications and a 100% forecast notification. It applies to all resources in `rg-portfolio` (including shared Project 1 resources), and notifications are not spending enforcement.
 
 ## Author
 
