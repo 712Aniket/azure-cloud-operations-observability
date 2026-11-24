@@ -201,6 +201,7 @@ def main() -> int:
             "description": description,
         })
 
+    actions.sort(key=lambda x: ({"Task": 0, "User Story": 1, "Feature": 2, "Epic": 3}[x["type"]], x["id"]))
     print(f"Preflight passed: {len(items)} IDs, exact titles/types, expected parent links and current states.")
     print("\nClosure preview:")
     for x in actions:
