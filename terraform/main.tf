@@ -28,10 +28,11 @@ resource "azurerm_monitor_scheduled_query_rules_alert_v2" "api_failures" {
 
   description             = "Detect failed requests from the Azure Cloud Resume Challenge Function App."
   enabled                 = true
-  evaluation_frequency    = "PT5M"
+  evaluation_frequency    = "PT15M"
   window_duration         = "PT5M"
   severity                = 2
   auto_mitigation_enabled = true
+  query_time_range_override = "P2D"
   skip_query_validation   = false
   tags                    = {}
   target_resource_types   = []
@@ -41,7 +42,7 @@ resource "azurerm_monitor_scheduled_query_rules_alert_v2" "api_failures" {
   ]
 
   criteria {
-    query = "requests | where toint(resultCode) >= 500 | where timestamp > ago(5m)"
+    query = "requests | where toint(resultCode) >= 500 | where timestamp > ago(15m)"
 
     time_aggregation_method = "Count"
     operator                = "GreaterThan"
@@ -49,7 +50,7 @@ resource "azurerm_monitor_scheduled_query_rules_alert_v2" "api_failures" {
 
     failing_periods {
       minimum_failing_periods_to_trigger_alert = 1
-      number_of_evaluation_periods             = 1
+      number_of_evaluation_periods             = 3
     }
   }
 
