@@ -320,7 +320,7 @@ The following tests have been performed:
 | Terraform Apply before state migration | 0 added, 0 changed, 0 destroyed |
 | Terraform CI after state migration | Successful on commit `5ac1ed1356de77db87e28be51a5e397243a3c61b` (run [45362003217](https://github.com/712Aniket/azure-cloud-operations-observability/actions/runs/45362003217)) |
 | Terraform plan after state migration | No changes; state lock acquired and released |
-| Separate Apply OIDC identity after state migration | **Pending independent verification** |
+| Separate Apply OIDC identity after state migration | Successful on 24 November 2026; run [45388391908](https://github.com/712Aniket/azure-cloud-operations-observability/actions/runs/45388391908), saved-plan apply completed with 0 added, 0 changed, 0 destroyed |
 
 Additional security and regression verification:
 
@@ -355,6 +355,13 @@ azure-cloud-operations-observability/
 │   ├── workbook/
 │   │   └── queries/
 │   └── runbooks/
+│       ├── README.md
+│       ├── api-availability.md
+│       ├── api-failure.md
+│       ├── application-insights.md
+│       ├── cost-management.md
+│       ├── networking-scope.md
+│       └── terraform-deployment.md
 │
 ├── terraform/
 │   ├── backend.tf
@@ -364,7 +371,9 @@ azure-cloud-operations-observability/
 │   └── variables.tf
 │
 ├── scripts/
-│   └── deploy_workbook.py
+│   ├── close_completed_azure_boards_items.py
+│   ├── deploy_workbook.py
+│   └── read_cost_cache.py
 ├── work_items/
 ├── config.py
 ├── main.py
@@ -382,7 +391,7 @@ The Azure Monitor Workbook definition and KQL queries are maintained in `docs/wo
 
 Workbook deployment is handled by `scripts/deploy_workbook.py`.
 
-Operational procedures are documented in `docs/runbooks/`, including API availability, API failure investigation and Application Insights troubleshooting. Three operational runbooks are maintained in the repository.
+Operational procedures are documented in `docs/runbooks/`. Six runbooks now cover API availability, API failure investigation, Application Insights, cost review and HTTP 429 throttling, Terraform deployment/state recovery, and the networking scope decision. Start at [`docs/runbooks/README.md`](docs/runbooks/README.md). The read-only `scripts/read_cost_cache.py` report reads the existing daily Function cache without triggering a new Cost Management query; a stale or unavailable snapshot is explicitly reported.
 
 ## Project Status
 
@@ -404,7 +413,7 @@ Completed:
 - GitHub Actions Terraform CI and deployment workflows.
 - Microsoft Entra ID OIDC authentication, separate CI/deployment identities and protected deployment approval.
 - Controlled failure testing and alert notification verification.
-- Three operational runbooks and 20 sanitized evidence screenshots.
+- Six operational runbooks and 20 sanitized evidence screenshots.
 - Security hardening and final API regression tests: HTTPS-only enabled, cost endpoints protected by Function keys, Cosmos DB local authentication disabled, and Cosmos DB network rules configured.
 
 ### Deferred items and known limitations
@@ -416,6 +425,18 @@ Completed:
 - **Decommissioning:** Project 1 and Project 2 share resources in `rg-portfolio`. Do not delete the entire resource group to remove Project 2; identify and remove Project 2-only resources individually, preserving the live portfolio API, visitor counter and their dependencies.
 
 These limitations are documented rather than treated as completed controls. Reassess them before reusing or extending this deployment.
+- **Resource-level cost review:** The cost query previously returned HTTP 429. Use the read-only `scripts/read_cost_cache.py` report to inspect the existing daily cache first. It does not trigger a new Cost Management request. Keep the Cost Management backlog active until a fresh snapshot is successfully reviewed and charges are attributed between Project 1, Project 2 and shared resources.
+- **Network scope:** A separate VNet/subnet/private endpoint is not part of the current public API baseline. The architecture decision and revisit triggers are documented in `docs/runbooks/networking-scope.md`. No VNet deployment is claimed.
+
+## Final Operational Readiness
+
+The core monitoring and deployment work is implemented. The remaining cost-review activity is explicitly kept open until an actual, timestamped resource-level cost snapshot is successfully reviewed; the Resource Group budget is shared with Project 1 and is not represented as a Project 2-only spend limit.
+
+The current Function App hosting model is Flex Consumption. The networking assessment records why a VNet/subnet/private endpoint is not required for the current public portfolio API, along with the conditions that would cause the decision to be revisited. This is a scope decision only; no VNet or private endpoint deployment is claimed.
+
+The Project 2 operational runbook set now includes cost-management and 429-throttling procedures, remote-state/deployment recovery, and the networking scope decision. The existing three API/application runbooks remain the source for alert response and telemetry troubleshooting.
+
+The separate Apply OIDC identity has now been independently verified after the state migration: [Terraform Deployment run #2](https://github.com/712Aniket/azure-cloud-operations-observability/actions/runs/45388391908) succeeded and applied a no-op plan (0 added, 0 changed, 0 destroyed).
 
 ## Cost Management
 
