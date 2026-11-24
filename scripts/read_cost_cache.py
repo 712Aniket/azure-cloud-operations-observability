@@ -57,8 +57,7 @@ def main() -> int:
         key = get_function_key()
         response = requests.get(
             ENDPOINT,
-            params={"code": key},
-            headers={"Accept": "application/json"},
+            headers={"Accept": "application/json", "x-functions-key": key},
             timeout=(10, 30),
         )
 
