@@ -25,7 +25,7 @@ Budget alerts notify; they do not stop, throttle or automatically delete resourc
 The primary Azure Monitor Workbook is defined in docs/workbook/workbook.json.
 
 - Azure Daily Cost Trend calls the Azure Resource Manager Cost Management Query API at Resource Group scope. It queries ActualCost, MonthToDate, daily granularity, sums PreTaxCost, and groups by ResourceId and ServiceName (the Query API supports up to two group-by clauses).
-- Azure Cost by Resource and Azure Cost by Service reuse the same daily result through Workbook Merge components. The service chart groups the returned rows by ServiceName; it does not issue a second Cost Management query.
+- Azure Cost by Resource and Azure Cost by Service reuse the same daily result through Workbook Merge components. Expandable table hierarchies roll up Cost with Sum: Resource → usage date, and Service → Resource → usage date. The service table does not issue a second Cost Management query.
 - The Project 1 Function App cost cache is a separate supporting path. The shared Function App's daily timer refreshes a snapshot into the private project2-cost-cache/cost-analytics.json blob at 02:30 UTC. The cache includes month-to-date totals, daily costs and per-resource totals. The cache is read through the Function-key-protected GET /api/cost-analytics endpoint. The protected POST /api/cost-cache-refresh operation is intended for controlled administrative use.
 - The workbook's current Cost Management panels query ARM directly; they do not call the Function App cache endpoint. Do not assume the workbook is displaying the cached snapshot.
 
