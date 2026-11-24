@@ -172,7 +172,7 @@ The 25-component workbook combines several data sources rather than relying on a
 
 - **Application Insights / KQL:** request volume, HTTP status codes, failures, availability results, exceptions and API performance.
 - **Project 1 portfolio analytics endpoint:** the workbook's custom-endpoint panels call `GET /api/portfolio-analytics`, which returns aggregated visitor geography, resume/certificate event totals, and appreciation/engagement metrics from Cosmos DB.
-- **Azure Cost Management:** the cost panels use the Workbook's ARM endpoint to query the Cost Management Query API directly, grouping actual cost by date, resource and service. The service-level chart reuses the same Cost Management result set as the resource chart, avoiding a second query. They do not call the Function App's `/api/cost-analytics` endpoint.
+- **Azure Cost Management:** the cost panels use the Workbook's ARM endpoint to query the Cost Management Query API directly, grouping actual cost by date, resource and service. Expandable workbook tables roll up month-to-date cost by resource and by service → resource → usage date. Both tables reuse the same Cost Management result set, avoiding additional queries. They do not call the Function App's `/api/cost-analytics` endpoint.
 - **Azure Resource Graph:** the inventory, security configuration and RBAC panels query Azure resource and authorization metadata.
 
 The Python deployment script publishes the workbook definition; it does not fetch Cost Management or Cosmos DB analytics data for the workbook.
@@ -445,7 +445,7 @@ The separate Apply OIDC identity has now been independently verified after the s
 
 The project uses the existing Azure Free Trial subscription and available credits.
 
-Cost visibility is integrated into the Azure Monitor Workbook using Azure Cost Management data. The workbook shows month-to-date daily costs by resource, resource-level distribution and service-level distribution. The resource and service charts reuse one daily Cost Management response.
+Cost visibility is integrated into the Azure Monitor Workbook using Azure Cost Management data. The workbook shows month-to-date daily costs by resource, resource-level distribution and service → resource → day cost roll-up. The resource and service charts reuse one daily Cost Management response.
 
 Cost-conscious practices:
 - Reuse existing Azure resources.
